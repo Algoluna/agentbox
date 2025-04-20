@@ -1,110 +1,133 @@
-# AgentBox: Kubernetes-Native AI Agent Platform
+# AgentBox: Production-Ready AI Agent Platform for Kubernetes
 
-AgentBox is a comprehensive, modular framework for deploying, managing, and scaling stateful AI agents on Kubernetes. It combines a robust Go-based operator, extensible CRDs, a Python agent SDK, and a fully featured agentctl CLI to deliver declarative agent management, persistent state, messaging, and seamless multi-instance deployments—all orchestrated via Helm and automated scripts.
+AgentBox is a powerful, extensible platform designed to simplify the deployment, management, and operation of stateful AI agents in Kubernetes environments. Created to bridge the gap between AI development and production operations, AgentBox provides a cohesive infrastructure that allows AI agents to be deployed, monitored, and scaled with enterprise-grade reliability and minimal operational overhead.
 
-## Features
+## Purpose and Design Goals
 
-- **Kubernetes-Native Orchestration:** Custom Resource Definitions (CRDs) and a Go operator manage agent lifecycle, secrets, and infra.
-- **agentctl CLI:** Build, deploy, log, message, and manage agents with a single tool, deeply integrated with Helm and Kubernetes.
-- **Python Agent SDK:** Provides a RuntimeContext for Postgres state, Valkey messaging, and LLM/embedding stubs, fully ADK-compatible.
-- **Helm Chart:** Parameterized, modular, and supports conditional deployment of shared infra and agent-only releases.
-- **Multi-Instance/Namespace:** Deploy and manage multiple agent types and instances in isolated namespaces.
-- **Automated Scripts:** End-to-end deployment, testing, and validation via scripts/deploy.sh and test/test_cli.sh.
-- **Comprehensive Documentation:** HTML manual, memory bank, and in-repo docs for onboarding and reference.
+The core mission of AgentBox is to transform complex, stateful AI agents from experimental projects into production-ready services by providing:
 
-## Architecture Overview
+1. **Infrastructure Abstraction:** Shield AI developers from the complexities of Kubernetes, networking, and cloud infrastructure
+2. **Operational Consistency:** Ensure all agents follow consistent deployment, monitoring, and scaling patterns
+3. **Stateful Operation:** Enable persistent state management that survives container restarts and redeployments
+4. **Secure Agent Communication:** Provide robust, scalable messaging between agents and external systems
+5. **Development Acceleration:** Minimize the gap between development and production environments
 
-- **Operator:** Watches Agent CRs, provisions secrets, manages agent pods, and updates status.
-- **CRDs:** Declarative agent definitions, extensible for new agent types and configurations.
-- **agentctl CLI:** Unified interface for agent lifecycle operations, tightly coupled with Helm and Kubernetes.
-- **Python SDK:** Infrastructure-agnostic agent logic, with pluggable state, messaging, and LLM/embedding.
-- **Helm:** Modular chart for system and agent releases, supporting parameterized deployments and conditional infra.
-- **Scripts:** Automate build, deploy, and test workflows for reproducibility and CI/CD integration.
+AgentBox achieves these goals through an architecture that embraces Kubernetes-native patterns while providing higher-level abstractions that make sense for AI agent workloads.
 
-## Quickstart
+## Components
 
-1. **Install Prerequisites:** Go 1.21+, Docker, Helm v3+, kubectl, microk8s or compatible Kubernetes cluster.
-2. **Build agentctl:**
-   ```sh
-   cd agentctl
-   go build -o agentctl .
+### Agent Operator
+
+The operator is the brain of the AgentBox platform, written in Go and built on the Kubernetes operator pattern. It:
+
+- Manages the full lifecycle of Agent custom resources in the cluster
+- Creates and maintains namespaces for each agent type
+- Provisions required secrets and credentials automatically
+- Monitors agent health and manages restart policies
+- Enforces consistency through Kubernetes-native declarative configuration
+- Provides a RESTful API server for direct agent messaging and management
+
+### PostgreSQL Database
+
+PostgreSQL serves as the durable state store for all agents, providing:
+
+- Persistent storage that survives container restarts
+- Schema separation by agent type and instance
+- Optimized query patterns for agent state retrieval
+- Transactional guarantees for state mutations
+- Backup and restore capabilities
+
+### Valkey Messaging Infrastructure
+
+Valkey (Redis-compatible) provides the real-time messaging backbone:
+
+- High-performance publish/subscribe channels for agent communication
+- Message queuing for asynchronous workloads
+- Temporary data caching for performance optimization
+- Agent discovery and coordination
+- Heartbeat and health monitoring
+
+### Google ADK Integration
+
+AgentBox is fully compatible with Google's Agent Development Kit (ADK), offering:
+
+- Drop-in compatibility with ADK-based agents
+- Standardized interfaces for LLM and embedding providers
+- Tools and utilities that complement the ADK programming model
+- Enhanced deployment capabilities for ADK agents
+- Production-grade infrastructure for ADK experimental projects
+
+### agentctl CLI
+
+The agentctl command-line interface is the primary tool for interacting with the AgentBox ecosystem:
+
+- Build agent container images with automatic Docker and registry integration
+- Deploy agents to Kubernetes with appropriate configuration and resources
+- Monitor agent status and view logs through a unified interface
+- Send and receive messages directly to running agents
+- Perform end-to-end testing of agent deployments
+- Use smart MicroK8s integration for local development
+
+## Installation
+
+Getting started with AgentBox is straightforward:
+
+1. **Prerequisites Setup:**
+   ```bash
+   # Install MicroK8s and enable required addons
+   sudo snap install microk8s --classic
+   microk8s enable registry dns
+   
+   # Clone repository and set up environment
+   git clone https://github.com/yourusername/agentbox.git
+   cd agentbox
+   
+   # Install agentctl to your local bin directory
+   ./scripts/install_agentctl.sh
+   
+   # Set up MicroK8s and other prerequisites
+   ./scripts/setup_microk8s.sh
+   ./scripts/setup_prereqs.sh
    ```
-3. **Deploy system infra:**
-   ```sh
-   bash scripts/deploy.sh
+
+2. **Deploy Core Infrastructure:**
+   ```bash
+   # Install CRDs
+   ./scripts/install_crds.sh
+   
+   # Deploy the operator and infrastructure
+   ./scripts/deploy.sh
    ```
-   This builds images, deploys infra, and launches a sample agent.
 
-4. **Test agentctl CLI:**
-   ```sh
-   bash test/test_cli.sh
+3. **Deploy Your First Agent:**
+   ```bash
+   # Build and deploy the hello-agent example
+   agentctl launch hello-agent
+   
+   # Check status and logs
+   agentctl status hello-agent
+   agentctl logs hello-agent
+   
+   # Test with a message
+   agentctl message hello-agent --payload='{"text": "Hello, agent!"}'
    ```
 
-## CLI Usage
+## Examples
 
-See [agentctl/AGENTCTL_MANUAL.html](agentctl/AGENTCTL_MANUAL.html) for a full manual.
+The repository contains several example agents that demonstrate different capabilities:
 
-- Build agent image:
-  ```sh
-  agentctl build --agent-name=hello-agent --image-tag=debug-20250420-123456 --import-microk8s
-  ```
-- Deploy agent (agent-only release):
-  ```sh
-  agentctl deploy --agent-name=hello-agent --namespace=agent-hello-agent --image-tag=debug-20250420-123456 \
-    --set globalSecrets.enabled=false \
-    --set postgresql.enabled=false \
-    --set valkey.enabled=false \
-    --set agentOperator.enabled=false \
-    --set agent.name=hello-agent \
-    --set agent.type=hello-agent \
-    --set agent.image=localhost:32000/hello-agent:debug-20250420-123456
-  ```
-- Tail logs:
-  ```sh
-  agentctl logs hello-agent --namespace=agent-hello-agent
-  ```
-- Send message:
-  ```sh
-  agentctl message --agent-name=hello-agent --payload='{"test": "ping"}' --redis-url=redis://localhost:6379 --timeout=10
-  ```
-- Status:
-  ```sh
-  agentctl status
-  agentctl status hello-agent
-  ```
-- Launch from manifest:
-  ```sh
-  agentctl launch /path/to/agent.yaml
-  ```
+- **hello-agent:** A simple example demonstrating basic agent functionality
+- **examples/chatbot-agent:** Shows how to build a conversational agent
+- **examples/chatbot-router:** Demonstrates agent-to-agent communication patterns
 
-## Helm & Deployment Patterns
+Each example includes its own README.md with detailed explanation and customization options. You can explore these examples to understand how to build your own agents with different capabilities.
 
-- **System Release:** Deploys shared infra (operator, Postgres, Valkey, secrets) in agentbox-system.
-- **Agent Releases:** Deploy agent CRs only, with all infra disabled via Helm flags.
-- **Parameterization:** All agent properties (name, type, image, env) are set via Helm values for reproducible, multi-instance deployments.
+For more advanced usage patterns, see the automated test scripts in the `test/` directory and the comprehensive HTML manual at `agentctl/AGENTCTL_MANUAL.html`.
 
-## Multi-Instance & Multi-Namespace
+## Author
 
-- Deploy multiple agents by specifying unique `--agent-name`, `--namespace`, and `--image-tag` for each instance.
-- Each agent runs in its own namespace with isolated secrets and resources.
-- Shared infra is only deployed once in the system namespace.
-
-## Testing & Troubleshooting
-
-- Use `scripts/deploy.sh` and `test/test_cli.sh` for automated validation.
-- Check pod and CR status with `agentctl status` and `kubectl get pods -n <namespace>`.
-- Review logs with `agentctl logs` for debugging agent startup and infra connections.
-- For Helm issues, ensure correct values are passed to disable infra in agent-only releases.
-
-## Contribution & Documentation
-
-- See [memory-bank/activeContext.md](memory-bank/activeContext.md) and [memory-bank/progress.md](memory-bank/progress.md) for project context and progress.
-- See [agentctl/AGENTCTL_MANUAL.html](agentctl/AGENTCTL_MANUAL.html) for CLI documentation.
-- Contributions are welcome! Please follow best practices for modular, testable, and reproducible code.
-
-## License
-
-[MIT License](LICENSE) (or as specified in the repo)
+AgentBox is created and maintained by Shyam Santhanam (santhanamss@gmail.com).
 
 ---
-AgentBox: Scalable, reproducible, and production-ready agent operations for Kubernetes-native AI.
+
+AgentBox: Production-ready AI agents on Kubernetes, simplified.
