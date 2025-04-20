@@ -89,6 +89,37 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, err
 	}
 
+	// --- TTL/LastActivityTime enforcement ---
+	if agent.Spec.TTL > 0 {
+		now := time.Now()
+		// If LastActivityTime is set, check for expiry
+		if agent.Spec.LastActivityTime != nil {
+			elapsed := now.Sub(agent.Spec.LastActivityTime.Time)
+			if elapsed > time.Duration(agent.Spec.TTL)*time.Second {
+				log.Info("Agent TTL expired, deleting agent", "Agent", req.NamespacedName, "TTL", agent.Spec.TTL, "LastActivityTime", agent.Spec.LastActivityTime.Time)
+				// Delete the agent
+				if err := r.Delete(ctx, &agent); err != nil {
+					log.Error(err, "Failed to delete agent after TTL expiry")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{}, nil
+			}
+			// Schedule next reconciliation at TTL expiry
+			timeUntilExpiry := time.Duration(agent.Spec.TTL)*time.Second - elapsed
+			return ctrl.Result{RequeueAfter: timeUntilExpiry}, nil
+		} else {
+			// Initialize LastActivityTime if not set
+			nowMeta := metav1.NewTime(now)
+			agent.Spec.LastActivityTime = &nowMeta
+			if err := r.Update(ctx, &agent); err != nil {
+				log.Error(err, "Failed to initialize LastActivityTime for agent")
+				return ctrl.Result{}, err
+			}
+			// Requeue for TTL check
+			return ctrl.Result{RequeueAfter: time.Duration(agent.Spec.TTL) * time.Second}, nil
+		}
+	}
+
 	// --- Ensure dedicated namespace for this agent type ---
 	agentTypeNamespace := fmt.Sprintf("agent-%s", agent.Spec.Type)
 	var ns corev1.Namespace

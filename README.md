@@ -1,172 +1,110 @@
-# AI Agent Platform
+# AgentBox: Kubernetes-Native AI Agent Platform
 
-A Kubernetes-based platform for long-running, stateful agents with LLM integration, vector memory, persistent state, observability, and CLI + dashboard controls.
+AgentBox is a comprehensive, modular framework for deploying, managing, and scaling stateful AI agents on Kubernetes. It combines a robust Go-based operator, extensible CRDs, a Python agent SDK, and a fully featured agentctl CLI to deliver declarative agent management, persistent state, messaging, and seamless multi-instance deployments—all orchestrated via Helm and automated scripts.
 
-## Project Overview
+## Features
 
-The AI Agent Platform integrates long-running, stateful agents with Kubernetes orchestration, providing capabilities such as:
-- LLM integration
-- Vector memory
-- Persistent state
-- Observability
-- CLI + dashboard controls
+- **Kubernetes-Native Orchestration:** Custom Resource Definitions (CRDs) and a Go operator manage agent lifecycle, secrets, and infra.
+- **agentctl CLI:** Build, deploy, log, message, and manage agents with a single tool, deeply integrated with Helm and Kubernetes.
+- **Python Agent SDK:** Provides a RuntimeContext for Postgres state, Valkey messaging, and LLM/embedding stubs, fully ADK-compatible.
+- **Helm Chart:** Parameterized, modular, and supports conditional deployment of shared infra and agent-only releases.
+- **Multi-Instance/Namespace:** Deploy and manage multiple agent types and instances in isolated namespaces.
+- **Automated Scripts:** End-to-end deployment, testing, and validation via scripts/deploy.sh and test/test_cli.sh.
+- **Comprehensive Documentation:** HTML manual, memory bank, and in-repo docs for onboarding and reference.
 
-## Repository Structure
+## Architecture Overview
 
-- **agent-operator/**: Go-based Kubernetes operator (CRDs, controller, manifests)
-- **agentctl/**: CLI tool for agent management
-- **hello-agent/**: Sample agent implementation
-- **test/**: Testing and deployment scripts
-- **plan/**: Planning and roadmap documents
+- **Operator:** Watches Agent CRs, provisions secrets, manages agent pods, and updates status.
+- **CRDs:** Declarative agent definitions, extensible for new agent types and configurations.
+- **agentctl CLI:** Unified interface for agent lifecycle operations, tightly coupled with Helm and Kubernetes.
+- **Python SDK:** Infrastructure-agnostic agent logic, with pluggable state, messaging, and LLM/embedding.
+- **Helm:** Modular chart for system and agent releases, supporting parameterized deployments and conditional infra.
+- **Scripts:** Automate build, deploy, and test workflows for reproducibility and CI/CD integration.
 
-## Phase 1 Implementation
+## Quickstart
 
-Phase 1 implements the core CRD and operator:
+1. **Install Prerequisites:** Go 1.21+, Docker, Helm v3+, kubectl, microk8s or compatible Kubernetes cluster.
+2. **Build agentctl:**
+   ```sh
+   cd agentctl
+   go build -o agentctl .
+   ```
+3. **Deploy system infra:**
+   ```sh
+   bash scripts/deploy.sh
+   ```
+   This builds images, deploys infra, and launches a sample agent.
 
-- **Agent CRD**: Defines agent types and instances declaratively
-- **Go Operator**: Manages CR lifecycle and orchestrates pods
-- **Hello World Agent**: Simple example agent
-- **CLI**: Basic commands: launch and status
+4. **Test agentctl CLI:**
+   ```sh
+   bash test/test_cli.sh
+   ```
 
-### Agent CRD
+## CLI Usage
 
-The `Agent` custom resource allows you to define:
-- Agent type
-- Container image
-- Environment variables
-- Input/output schema references (future)
+See [agentctl/AGENTCTL_MANUAL.html](agentctl/AGENTCTL_MANUAL.html) for a full manual.
 
-Status fields track:
-- Phase (Pending, Running, Completed, Failed)
-- Status message
+- Build agent image:
+  ```sh
+  agentctl build --agent-name=hello-agent --image-tag=debug-20250420-123456 --import-microk8s
+  ```
+- Deploy agent (agent-only release):
+  ```sh
+  agentctl deploy --agent-name=hello-agent --namespace=agent-hello-agent --image-tag=debug-20250420-123456 \
+    --set globalSecrets.enabled=false \
+    --set postgresql.enabled=false \
+    --set valkey.enabled=false \
+    --set agentOperator.enabled=false \
+    --set agent.name=hello-agent \
+    --set agent.type=hello-agent \
+    --set agent.image=localhost:32000/hello-agent:debug-20250420-123456
+  ```
+- Tail logs:
+  ```sh
+  agentctl logs hello-agent --namespace=agent-hello-agent
+  ```
+- Send message:
+  ```sh
+  agentctl message --agent-name=hello-agent --payload='{"test": "ping"}' --redis-url=redis://localhost:6379 --timeout=10
+  ```
+- Status:
+  ```sh
+  agentctl status
+  agentctl status hello-agent
+  ```
+- Launch from manifest:
+  ```sh
+  agentctl launch /path/to/agent.yaml
+  ```
 
-### Operator Functionality
+## Helm & Deployment Patterns
 
-The operator:
-- Creates a pod for each Agent CR
-- Updates the Agent status based on pod lifecycle
-- Sets proper ownership references
+- **System Release:** Deploys shared infra (operator, Postgres, Valkey, secrets) in agentbox-system.
+- **Agent Releases:** Deploy agent CRs only, with all infra disabled via Helm flags.
+- **Parameterization:** All agent properties (name, type, image, env) are set via Helm values for reproducible, multi-instance deployments.
 
-### CLI (agentctl)
+## Multi-Instance & Multi-Namespace
 
-The CLI provides:
-- `launch`: Deploy an agent from a YAML file
-- `status`: Check agent status or list all agents
+- Deploy multiple agents by specifying unique `--agent-name`, `--namespace`, and `--image-tag` for each instance.
+- Each agent runs in its own namespace with isolated secrets and resources.
+- Shared infra is only deployed once in the system namespace.
 
-## Getting Started
+## Testing & Troubleshooting
 
-### Prerequisites
+- Use `scripts/deploy.sh` and `test/test_cli.sh` for automated validation.
+- Check pod and CR status with `agentctl status` and `kubectl get pods -n <namespace>`.
+- Review logs with `agentctl logs` for debugging agent startup and infra connections.
+- For Helm issues, ensure correct values are passed to disable infra in agent-only releases.
 
-- Kubernetes cluster (minikube or microk8s for local development)
-- Go 1.21+
-- Docker
-- Helm v3+
+## Contribution & Documentation
 
-### Deploying to MicroK8s
-
-Run the deployment script:
-
-```bash
-./test/deploy_to_microk8s.sh
-```
-
-This will:
-1. Set up necessary MicroK8s addons (DNS, registry, storage)
-2. Build the hello-agent image
-3. Install the Agent CRD
-4. Deploy the operator
-5. Create a sample agent instance
-
-### Deploying with Helm
-
-We provide a Helm chart for deploying the full platform (PostgreSQL, Valkey, Agent Operator).
-
-First, set up the prerequisites:
-
-```bash
-# Create namespaces and PostgreSQL admin credentials secret
-./scripts/setup_prereqs.sh
-```
-
-Then deploy using Helm:
-
-```bash
-# Install or upgrade the deployment
-helm upgrade --install agentbox ./helm \
-  --namespace=agentbox-system \
-  -f helm/values.yaml \
-  -f helm/values-microk8s.yaml
-```
-
-The `scripts/setup_prereqs.sh` script does the following:
-1. Creates the `agentbox-system` namespace for core components
-2. Creates the `agent-hello-agent` namespace for agent instances
-3. Creates a Secret containing PostgreSQL admin credentials
-
-Alternatively, use the all-in-one deploy script:
-
-```bash
-./scripts/deploy.sh
-```
-
-### Testing the CLI
-
-After deploying, test the CLI:
-
-```bash
-./test/test_cli.sh
-```
-
-This will:
-1. Build the CLI
-2. Test status commands
-3. Launch a new agent via the CLI
-4. Verify everything is working
-
-## Manually Testing Components
-
-### Create an Agent
-
-Sample agent manifests are located in their respective directories:
-- Agent Operator samples: `agent-operator/config/samples/`
-- Hello Agent samples: `hello-agent/config/samples/`
-
-Example of an agent YAML:
-
-```yaml
-apiVersion: agents.algoluna.com/v1alpha1
-kind: Agent
-metadata:
-  name: hello-001
-spec:
-  type: hello-agent
-  image: hello-agent:latest
-  env:
-    - name: LOG_LEVEL
-      value: "info"
-```
-
-### CLI Commands
-
-```bash
-# Check agent status
-./agentctl status
-
-# Check specific agent
-./agentctl status hello-001
-
-# Launch a new agent
-./agentctl launch my-agent.yaml
-```
-
-## Next Steps
-
-Phase 2 will implement the Agent SDK with:
-- Persistent state via Postgres
-- Messaging via Redis Streams
-- Stateless and stateful LLM interactions
-- Embedding API for semantic memory
+- See [memory-bank/activeContext.md](memory-bank/activeContext.md) and [memory-bank/progress.md](memory-bank/progress.md) for project context and progress.
+- See [agentctl/AGENTCTL_MANUAL.html](agentctl/AGENTCTL_MANUAL.html) for CLI documentation.
+- Contributions are welcome! Please follow best practices for modular, testable, and reproducible code.
 
 ## License
 
-Apache 2.0
+[MIT License](LICENSE) (or as specified in the repo)
+
+---
+AgentBox: Scalable, reproducible, and production-ready agent operations for Kubernetes-native AI.

@@ -55,6 +55,17 @@ type AgentSpec struct {
 	// +kubebuilder:validation:Minimum:=-1
 	MaxRestarts int `json:"maxRestarts,omitempty"`
 
+	// TTL defines the maximum time (in seconds) that an agent can be inactive before being automatically deleted.
+	// A value of 0 (default) means no TTL (agent is not ephemeral).
+	// +optional
+	// +kubebuilder:default:=0
+	TTL int64 `json:"ttl,omitempty"`
+
+	// LastActivityTime is the last time the agent was actively used (e.g., received a message or executed code).
+	// Updated automatically by the controller or agent runtime.
+	// +optional
+	LastActivityTime *metav1.Time `json:"lastActivityTime,omitempty"`
+
 	// InputSchemaRef is (future) Input schema
 	// +optional
 	InputSchemaRef string `json:"inputSchemaRef,omitempty"`
