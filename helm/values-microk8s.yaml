@@ -1,0 +1,20 @@
+# Helm values overrides for microk8s environment
+
+valkey:
+  auth:
+    enabled: true
+    password: "changeme"
+
+
+# -- Use the default storage class provided by microk8s
+# -- (often 'microk8s-hostpath' or similar, check your setup)
+postgresql:
+  primary:
+    persistence:
+      storageClass: "" # Set this to your microk8s storage class, e.g., "microk8s-hostpath"
+
+# Valkey persistence might also need storageClass if enabled
+# valkey:
+#   master:
+#     persistence:
+#       storageClass: "" # Set this to your microk8s storage class

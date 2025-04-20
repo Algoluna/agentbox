@@ -1,0 +1,31 @@
+{{- if .Values.agentOperator.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agentbox.fullname" . }}-agent-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agentbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent-operator
+spec:
+  type: ClusterIP # Typically only needs internal access
+  ports:
+    # Define ports if the operator exposes any (e.g., metrics, webhooks)
+    # - port: 8080
+    #   targetPort: metrics
+    #   protocol: TCP
+    #   name: metrics
+    # - port: 443
+    #   targetPort: webhook-server
+    #   protocol: TCP
+    #   name: webhook-server
+    - port: 80 # Placeholder - remove if no ports exposed
+      targetPort: 8080 # Placeholder
+      protocol: TCP
+      name: http # Placeholder
+  selector:
+    # Selects the pods managed by the Deployment
+    app.kubernetes.io/name: {{ include "agentbox.name" . }}-agent-operator
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: agent-operator
+{{- end }}

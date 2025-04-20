@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-operator-controller-manager
+  namespace: agent-operator-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        # This image name should match the one tagged for the local registry
+        image: localhost:32000/agent-operator:latest
+        imagePullPolicy: IfNotPresent

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+venv/
+*.whl
+
+# Go
+agentctl/agentctl
+agent-operator/bin/
+*.exe
+*.out
+*.test
+
+# Docker
+*.tar
+
+# Editor/OS
+.DS_Store
+.vscode/
+.idea/
+*~
+
+# Misc
+*.log
+*.tmp
+*.bak

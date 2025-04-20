@@ -1,0 +1,8 @@
+apiVersion: v2
+name: agentbox
+description: A Helm chart for deploying the AgentBox platform (Postgres, Valkey, Agent Operator)
+type: application
+version: 0.1.0 # Initial chart version
+appVersion: "0.1.0" # Corresponds to the application version
+
+# Using local templates for all components instead of external dependencies

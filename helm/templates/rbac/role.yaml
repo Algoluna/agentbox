@@ -1,0 +1,27 @@
+{{- if .Values.agentNamespaces }}
+{{- range .Values.agentNamespaces }}
+---
+# Role within agent namespace {{ .name }} to manage Secrets and Pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  # Name the role uniquely within the namespace
+  name: {{ include "agentbox.fullname" $ }}-{{ .name }}-manager 
+  namespace: {{ .name }} # Target the specific agent namespace
+  labels:
+    {{- include "agentbox.labels" $ | nindent 4 }}
+rules:
+- apiGroups: [""] # Core API group
+  resources: ["secrets"]
+  # Grant permissions needed to create/update/get agent credentials
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] 
+- apiGroups: [""] # Core API group
+  resources: ["pods"]
+  # Grant permissions needed to create/manage agent pods
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""] # Core API group
+  resources: ["pods/log"]
+  # Grant permissions needed to get logs from agent pods
+  verbs: ["get", "list", "watch"]
+{{- end }}
+{{- end }}

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Agentctl CLI Manual</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #222; }
+    h1, h2, h3 { color: #2c3e50; }
+    pre, code { background: #f4f4f4; border-radius: 4px; padding: 0.5em; }
+    .section { margin-bottom: 2em; }
+    .command { color: #2980b9; font-weight: bold; }
+    .example { background: #eef6fb; border-left: 4px solid #2980b9; padding: 1em; margin: 1em 0; }
+    ul { margin-left: 2em; }
+  </style>
+</head>
+<body>
+  <h1>Agentctl CLI Manual</h1>
+  <div class="section">
+    <h2>Overview</h2>
+    <p>
+      <b>agentctl</b> is a command-line tool for building, deploying, managing, and interacting with AI agents on Kubernetes. It integrates tightly with Helm and Kubernetes, supporting multi-instance, multi-namespace workflows, and robust automation for agent lifecycle management.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>Installation</h2>
+    <ol>
+      <li>Ensure you have <b>Go 1.21+</b>, <b>Docker</b>, <b>Helm v3+</b>, and <b>kubectl</b> installed.</li>
+      <li>Clone the repository and build agentctl:
+        <pre><code>cd agentctl
+go build -o agentctl .</code></pre>
+      </li>
+      <li>Ensure <code>agentctl</code> is in your <code>PATH</code> or use <code>./agentctl</code> directly.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Command Reference</h2>
+    <h3 class="command">build</h3>
+    <p>Build the agent Docker image and import it into microk8s/containerd.</p>
+    <pre><code>agentctl build --agent-name=hello-agent --image-tag=debug-20250420-123456 --import-microk8s</code></pre>
+    <ul>
+      <li><b>--agent-name</b>: Name of the agent (required)</li>
+      <li><b>--image-tag</b>: Image tag (default: latest)</li>
+      <li><b>--import-microk8s</b>: Import image to microk8s (default: true)</li>
+    </ul>
+
+    <h3 class="command">deploy</h3>
+    <p>Deploy an agent using Helm. Passes all required values for agent CR creation and disables infra for agent-only releases.</p>
+    <pre><code>agentctl deploy --agent-name=hello-agent --namespace=agent-hello-agent --image-tag=debug-20250420-123456 \
+  --set globalSecrets.enabled=false \
+  --set postgresql.enabled=false \
+  --set valkey.enabled=false \
+  --set agentOperator.enabled=false \
+  --set agent.name=hello-agent \
+  --set agent.type=hello-agent \
+  --set agent.image=localhost:32000/hello-agent:debug-20250420-123456
+</code></pre>
+    <ul>
+      <li><b>--agent-name</b>: Name of the agent instance (required)</li>
+      <li><b>--namespace</b>: Kubernetes namespace to deploy to (required)</li>
+      <li><b>--image-tag</b>: Agent Docker image tag (required)</li>
+      <li><b>--set</b>: Additional Helm values (see above for required flags)</li>
+    </ul>
+
+    <h3 class="command">logs</h3>
+    <p>Tail logs for an agent pod by name/label.</p>
+    <pre><code>agentctl logs hello-agent --namespace=agent-hello-agent</code></pre>
+
+    <h3 class="command">message</h3>
+    <p>Send a message to a running agent and receive a reply via Valkey/Redis.</p>
+    <pre><code>agentctl message --agent-name=hello-agent --payload='{"test": "ping"}' --redis-url=redis://localhost:6379 --timeout=10</code></pre>
+    <ul>
+      <li><b>--agent-name</b>: Name of the agent (required)</li>
+      <li><b>--payload</b>: Message payload (required, JSON string recommended)</li>
+      <li><b>--redis-url</b>: Redis/Valkey URL (default: redis://localhost:6379)</li>
+      <li><b>--timeout</b>: Timeout in seconds to wait for reply (default: 30)</li>
+    </ul>
+
+    <h3 class="command">status</h3>
+    <p>Show status for a specific agent or list all agents.</p>
+    <pre><code>agentctl status
+agentctl status hello-agent</code></pre>
+
+    <h3 class="command">launch</h3>
+    <p>Launch an agent from a YAML manifest.</p>
+    <pre><code>agentctl launch /path/to/agent.yaml</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Usage Examples</h2>
+    <div class="example">
+      <b>Build and deploy a new agent instance:</b>
+      <pre><code>
+# Build the agent image
+agentctl build --agent-name=hello-agent --image-tag=debug-20250420-123456 --import-microk8s
+
+# Deploy the agent (agent-only release)
+agentctl deploy --agent-name=hello-agent --namespace=agent-hello-agent --image-tag=debug-20250420-123456 \
+  --set globalSecrets.enabled=false \
+  --set postgresql.enabled=false \
+  --set valkey.enabled=false \
+  --set agentOperator.enabled=false \
+  --set agent.name=hello-agent \
+  --set agent.type=hello-agent \
+  --set agent.image=localhost:32000/hello-agent:debug-20250420-123456
+      </code></pre>
+    </div>
+    <div class="example">
+      <b>Tail logs for a running agent:</b>
+      <pre><code>agentctl logs hello-agent --namespace=agent-hello-agent</code></pre>
+    </div>
+    <div class="example">
+      <b>Send a message to an agent and receive a reply:</b>
+      <pre><code>agentctl message --agent-name=hello-agent --payload='{"test": "ping"}' --redis-url=redis://localhost:6379 --timeout=10</code></pre>
+    </div>
+    <div class="example">
+      <b>Check agent status:</b>
+      <pre><code>agentctl status
+agentctl status hello-agent</code></pre>
+    </div>
+    <div class="example">
+      <b>Launch an agent from a manifest:</b>
+      <pre><code>agentctl launch /path/to/agent.yaml</code></pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Integration with Scripts and Helm</h2>
+    <ul>
+      <li><b>scripts/deploy.sh</b>: Automates the full build, deploy, and verification workflow using agentctl and Helm.</li>
+      <li>System release (agentbox-system) deploys shared infra; agent releases only deploy agent CRs.</li>
+      <li>All Helm values are parameterized for multi-instance, multi-namespace support.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Multi-Instance and Multi-Namespace Deployment</h2>
+    <ul>
+      <li>Deploy multiple agents by specifying unique <code>--agent-name</code>, <code>--namespace</code>, and <code>--image-tag</code> for each instance.</li>
+      <li>Each agent runs in its own namespace with isolated secrets and resources.</li>
+      <li>Shared infra is only deployed once in the system namespace.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Troubleshooting & Best Practices</h2>
+    <ul>
+      <li>Always use unique image tags for each build to avoid cache confusion.</li>
+      <li>Use <code>--set globalSecrets.enabled=false</code> and similar flags for agent-only releases to avoid Helm secret conflicts.</li>
+      <li>Check pod and CR status with <code>agentctl status</code> and <code>kubectl get pods -n <namespace></code>.</li>
+      <li>Review logs with <code>agentctl logs</code> for debugging agent startup and infra connections.</li>
+      <li>For advanced Helm usage, see <code>helm --help</code> and the chart's <code>values.yaml</code> for all available options.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Further Reading</h2>
+    <ul>
+      <li><a href="../memory-bank/activeContext.md">Project Active Context</a></li>
+      <li><a href="../memory-bank/progress.md">Project Progress</a></li>
+      <li><a href="../README.md">Project README</a></li>
+      <li><a href="https://helm.sh/docs/">Helm Documentation</a></li>
+      <li><a href="https://kubernetes.io/docs/">Kubernetes Documentation</a></li>
+    </ul>
+  </div>
+</body>
+</html>

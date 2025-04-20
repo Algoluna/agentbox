@@ -1,0 +1,25 @@
+{{- if .Values.agentNamespaces }}
+{{- range .Values.agentNamespaces }}
+---
+# RoleBinding to grant the operator ServiceAccount the manager Role within namespace {{ .name }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  # Name the binding uniquely within the namespace
+  name: {{ include "agentbox.fullname" $ }}-{{ .name }}-manager-binding
+  namespace: {{ .name }} # Target the specific agent namespace
+  labels:
+    {{- include "agentbox.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  # Reference the Role created in the same namespace
+  name: {{ include "agentbox.fullname" $ }}-{{ .name }}-manager 
+subjects:
+- kind: ServiceAccount
+  # Reference the operator's ServiceAccount
+  name: {{ include "agentbox.agentOperator.serviceAccountName" $ }}
+  # Specify the namespace where the operator's ServiceAccount resides
+  namespace: {{ $.Release.Namespace }} 
+{{- end }}
+{{- end }}

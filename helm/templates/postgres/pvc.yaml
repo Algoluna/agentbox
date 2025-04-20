@@ -1,0 +1,23 @@
+{{- if and .Values.postgresql.enabled (not .Values.postgresql.external) .Values.postgresql.primary.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-data" (include "agentbox.fullname" .) }} # Name matches the one expected by the StatefulSet volumeClaimTemplates
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agentbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  accessModes:
+    - ReadWriteOnce # Suitable for a single StatefulSet pod
+  resources:
+    requests:
+      storage: {{ .Values.postgresql.primary.persistence.size }}
+  {{- if .Values.postgresql.primary.persistence.storageClass }}
+  {{- if (eq "-" .Values.postgresql.primary.persistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.postgresql.primary.persistence.storageClass }}
+  {{- end }}
+  {{- end }}
+{{- end }}

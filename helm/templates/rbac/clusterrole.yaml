@@ -1,0 +1,17 @@
+# ClusterRole to allow the operator to get, list, and watch Agent resources cluster-wide
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "agentbox.fullname" . }}-agent-reader
+  labels:
+    {{- include "agentbox.labels" . | nindent 4 }}
+rules:
+- apiGroups: ["agents.algoluna.com"] # Make sure this matches the group in your CRD definition
+  resources: ["agents"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["agents.algoluna.com"]
+  resources: ["agents/status"]
+  verbs: ["get", "update", "patch"]
+- apiGroups: [""] # Core API group
+  resources: ["namespaces"] # Needed potentially to check if agent namespaces exist
+  verbs: ["get", "list", "watch"]

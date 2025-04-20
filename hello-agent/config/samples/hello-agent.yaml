@@ -1,0 +1,10 @@
+apiVersion: agents.algoluna.com/v1alpha1
+kind: Agent
+metadata:
+  name: hello-agent-test
+spec:
+  type: hello-agent
+  image: hello-agent:latest
+  env:
+    - name: LOG_LEVEL
+      value: "info"

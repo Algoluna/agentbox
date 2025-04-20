@@ -1,0 +1,256 @@
+# Default values for agentbox Helm chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1 # Default replica count for stateless components
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# -- agentbox-system namespace where core components are deployed
+namespace: agentbox-system
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# -- Configuration for the agent-operator component
+agentOperator:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: agent-operator # Replace with actual image repo if needed
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest" # Replace with actual tag
+  # -- Service account specific to the agent-operator
+  serviceAccount:
+# Default values for agentbox Helm chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1 # Default replica count for stateless components
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# -- agentbox-system namespace where core components are deployed
+namespace: agentbox-system
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# -- Configuration for the agent-operator component
+agentOperator:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: agent-operator # Replace with actual image repo if needed
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+  # -- Service account specific to the agent-operator
+  serviceAccount:
+# Default values for agentbox Helm chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1 # Default replica count for stateless components
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# -- agentbox-system namespace where core components are deployed
+namespace: agentbox-system
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# -- Configuration for the agent-operator component
+agentOperator:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: agent-operator # Replace with actual image repo if needed
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest" # Replace with actual tag
+  # -- Service account specific to the agent-operator
+  serviceAccount:
+    create: true
+    name: "agent-operator"
+    annotations: {}
+  # -- Admin credentials for the operator to connect to Postgres
+  # -- These should be stored in a Secret and referenced here, or managed externally.
+  # -- Example: secretName: agent-operator-db-creds, secretKey: connectionString
+  dbAdminCredentials:
+    secretName: "" # Name of the Secret holding DB admin credentials, will be set by template
+    secretKey: "admin_connection_string"  # Key within the Secret for the connection string
+
+  resources: {}
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+# -- Configuration for the Postgres component
+postgresql:
+  enabled: true
+  # -- Use an existing external Postgres instance instead of deploying one
+  external: false
+  # -- If external is true, provide connection details
+  # externalConfig:
+  #   host: ""
+  #   port: 5432
+  #   database: "agentbox"
+  #   usernameSecret: # Secret containing the username
+  #     name: ""
+  #     key: ""
+  #   passwordSecret: # Secret containing the password
+  #     name: ""
+  #     key: ""
+
+  # -- Configuration for the deployed Postgres instance (if external is false)
+  image:
+    repository: postgres
+    tag: "15" # Use a specific stable version
+    pullPolicy: IfNotPresent
+  auth:
+    # -- Credentials for the main Postgres admin user (used by operator for role creation)
+    # -- It's highly recommended to set these via --set or a values file, not defaults.
+    username: "postgres"
+    database: "agentbox"
+    # -- Name of an existing secret containing PostgreSQL admin credentials
+    # -- This secret should contain POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_HOST, and POSTGRES_PORT keys
+    existingAdminSecretName: "agentbox-pg-admin-creds"
+  primary:
+    persistence:
+      enabled: true
+      # storageClass: "" # Specify if not using default
+      size: 8Gi
+    resources: {}
+      # limits:
+      #   cpu: 500m
+      #   memory: 512Mi
+      # requests:
+      #   cpu: 250m
+      #   memory: 256Mi
+
+# -- Configuration for the Valkey component
+valkey:
+  enabled: true
+  # -- Use an existing external Valkey instance instead of deploying one
+  external: false
+  # -- If external is true, provide connection details
+  # externalConfig:
+  #   host: ""
+  #   port: 6379
+  #   passwordSecret: # Secret containing the password (if auth enabled)
+  #     name: ""
+  #     key: ""
+
+  # -- Configuration for the deployed Valkey instance (if external is false)
+  image:
+    repository: valkey/valkey
+    tag: "latest" # Or pin to a specific version
+    pullPolicy: IfNotPresent
+  auth:
+    enabled: false # Set to true to enable password authentication
+    # existingSecret: "" # Name of a pre-existing Secret for Valkey auth
+    password: "" # SET VIA --set valkey.auth.password=YOUR_VALKEY_PASSWORD if auth.enabled=true
+  master:
+    replicaCount: 1
+    persistence:
+      enabled: false # Valkey often used as cache/queue, persistence optional
+      # storageClass: ""
+      # size: 4Gi
+    resources: {}
+      # limits:
+      #   cpu: 200m
+      #   memory: 256Mi
+      # requests:
+      #   cpu: 100m
+      #   memory: 128Mi
+
+# -- Configuration for agent namespaces (used by operator RBAC templates)
+# -- The operator needs RoleBindings in these namespaces to manage Secrets and Pods.
+agentNamespaces:
+  - name: agent-hello-agent # Add namespaces for each agent type here
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+valkeyAdmin:
+  user: "default"
+  password: "changeme"

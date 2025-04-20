@@ -1,0 +1,15 @@
+1. Get the application URL by running these commands:
+   NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+         Watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "agentbox.fullname" . }}'
+   export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "agentbox.fullname" . }} --template "{{ range (index .status.loadBalancer.ingress 0) }}{{ . }}{{ end }}")
+   echo "AgentBox platform is accessible at http://$SERVICE_IP"
+
+2. Ensure you have set the required passwords during installation, e.g.:
+   --set postgresql.auth.password=YOUR_POSTGRES_PASSWORD
+   --set valkey.auth.password=YOUR_VALKEY_PASSWORD # If valkey.auth.enabled=true
+
+3. Configure the agent-operator's database admin credentials Secret if needed.
+
+4. Create agent namespaces (e.g., `kubectl create ns agent-hello-agent`) if not managed elsewhere.
+
+5. Deploy Agent custom resources into their respective namespaces.

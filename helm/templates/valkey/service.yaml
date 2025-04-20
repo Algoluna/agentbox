@@ -1,0 +1,22 @@
+{{- if and .Values.valkey.enabled (not .Values.valkey.external) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agentbox.fullname" . }}-valkey
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agentbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: tcp-valkey
+  selector:
+    # Selects the pods managed by the Deployment/StatefulSet
+    app.kubernetes.io/name: {{ include "agentbox.name" . }}-valkey
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: valkey
+{{- end }}

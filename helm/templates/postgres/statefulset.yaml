@@ -1,0 +1,92 @@
+{{- if and .Values.postgresql.enabled (not .Values.postgresql.external) }}
+apiVersion: {{ include "statefulset.apiVersion" . }}
+kind: StatefulSet
+metadata:
+  name: {{ include "agentbox.fullname" . }}-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agentbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  serviceName: {{ include "agentbox.fullname" . }}-postgresql # Headless service name
+  replicas: 1 # Typically run a single primary for simplicity unless HA is needed
+  selector:
+    matchLabels:
+      {{- include "agentbox.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgresql
+      # Add specific labels for postgres statefulset pods
+      app.kubernetes.io/name: {{ include "agentbox.name" . }}-postgresql
+  template:
+    metadata:
+      labels:
+        {{- include "agentbox.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgresql
+        # Add specific labels for postgres statefulset pods
+        app.kubernetes.io/name: {{ include "agentbox.name" . }}-postgresql
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "agentbox.agentOperator.serviceAccountName" . }} # Reuse operator SA or create dedicated? For now reuse.
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: postgresql
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingAdminSecretName }}
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingAdminSecretName }}
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingAdminSecretName }}
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata # Standard data directory
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "agentbox", "-h", "127.0.0.1", "-p", "5432"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "agentbox", "-h", "127.0.0.1", "-p", "5432"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.postgresql.primary.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+        {{- if .Values.postgresql.primary.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ printf "%s-data" (include "agentbox.fullname" .) }}
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+  # Volume claim templates are often used with StatefulSets, but for a single replica,
+  # referencing an external PVC (created by pvc.yaml) in spec.template.spec.volumes is simpler.
+  # If scaling > 1 replica, volumeClaimTemplates would be needed here.
+{{- end }}

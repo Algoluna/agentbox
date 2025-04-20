@@ -1,0 +1,86 @@
+{{- if and .Values.valkey.enabled (not .Values.valkey.external) }}
+apiVersion: {{ include "deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ include "agentbox.fullname" . }}-valkey
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agentbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+    # Add specific labels for valkey deployment pods
+    app.kubernetes.io/name: {{ include "agentbox.name" . }}-valkey
+spec:
+  replicas: {{ .Values.valkey.master.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agentbox.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: valkey
+      app.kubernetes.io/name: {{ include "agentbox.name" . }}-valkey
+  template:
+    metadata:
+      labels:
+        {{- include "agentbox.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: valkey
+        app.kubernetes.io/name: {{ include "agentbox.name" . }}-valkey
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "agentbox.agentOperator.serviceAccountName" . }} # Reuse operator SA for now
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: valkey
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
+          imagePullPolicy: {{ .Values.valkey.image.pullPolicy }}
+          command: ["valkey-server"]
+          args:
+            {{- if .Values.valkey.auth.enabled }}
+            - "--requirepass"
+            - "$(VALKEY_PASSWORD)"
+            {{- end }}
+            # Add other valkey config args here if needed
+          env:
+            {{- if .Values.valkey.auth.enabled }}
+            - name: VALKEY_PASSWORD
+            {{- if not .Values.valkey.auth.existingSecret }}
+              value: {{ .Values.valkey.auth.password | quote }}
+            {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.valkey.auth.existingSecret }}
+                  key: valkey-password # Adjust key if necessary
+            {{- end }}
+            {{- end }}
+          ports:
+            - name: tcp-valkey
+              containerPort: 6379
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: tcp-valkey
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
+          resources:
+            {{- toYaml .Values.valkey.master.resources | nindent 12 }}
+          {{- if .Values.valkey.master.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data # Default Valkey data dir
+          {{- end }}
+      {{- if .Values.valkey.master.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ printf "%s-valkey-data" (include "agentbox.fullname" .) }} # Assumes a PVC is defined elsewhere or via volumeClaimTemplates if StatefulSet
+      {{- end }}
+{{- end }}

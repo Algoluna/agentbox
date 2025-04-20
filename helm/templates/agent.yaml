@@ -1,0 +1,14 @@
+apiVersion: agents.algoluna.com/v1alpha1
+kind: Agent
+metadata:
+  name: {{ .Values.agent.name | default "hello-agent" }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.agent.type | default "hello-agent" }}
+  image: {{ .Values.agent.image | quote }}
+  env:
+{{- if .Values.agent.env }}
+{{ toYaml .Values.agent.env | indent 4 }}
+{{- end }}
+  runOnce: {{ .Values.agent.runOnce | default true }}
+  maxRestarts: {{ .Values.agent.maxRestarts | default 5 }}
