@@ -1,52 +1,67 @@
 # Active Context
 
-## CLI, Helm, and Deployment Integration (April 2025)
+## Agent Configuration Standardization (April 2025)
 
-- **agentctl CLI** now supports: `build`, `deploy`, `logs`, `message`, `status`, `launch`.
-- **Helm Chart**: Now includes a parameterized Agent CR template (agent.yaml). All infra (operator, Postgres, Valkey, secrets) is conditionally deployed. Agent CR is created with values from agentctl deploy.
-- **Deployment Workflow**: 
-  - scripts/deploy.sh uses agentctl for build, deploy, logs, and status.
-  - agentctl deploy passes all required values to Helm for agent CR creation and disables infra for agent-only releases.
-  - The system release deploys shared infra; agent releases only deploy agent CRs.
-- **Helm Issues Resolved**: 
-  - Global secrets and infra are not re-created in agent releases.
-  - No more ownership/namespace conflicts.
-  - No more stuck Helm upgrades.
-- **Pod Creation**: 
-  - Agent pod (hello-agent) is reliably created and reaches Running/Ready.
-  - Pod uses correct image, env, and configuration.
-  - Logs confirm successful Postgres/Valkey connections and agent main loop.
-- **Multi-Instance Support**: 
-  - CLI and chart support deploying multiple agent instances with unique names/images.
-- **Testing**: 
-  - test/test_cli.sh uses agentctl for logs and messaging.
-  - End-to-end deployment and agent lifecycle is fully automated.
+- **Simplified Agent Examples**: Removed chatbot-router, focusing on a single chatbot-agent example for simplicity.
+- **Standardized Configuration**: Created a convention-driven structure for all agents with:
+  - Dockerfile: standard container definition 
+  - agent.yaml: a unified configuration file with environment-specific settings
+  - main.py: agent implementation
+  - README.md: consistent documentation
+
+- **Environment-specific Configurations**:
+  - agent.yaml now includes an `environments` section supporting:
+  - Different registries for different environments (dev, microk8s, prod)
+  - Environment-specific cluster targeting
+  - Environment-variable overrides per environment
+  - Base configuration that applies to all environments
+
+- **Enhanced agentctl**:
+  - Updated build and deploy commands to support `--env` flag
+  - Improved environment handling with environment-specific configs
+  - Enhanced kubeconfig management for multi-cluster support
+
+- **Directory Structure**:
+  - Eliminated complex config/base and config/local directory structure
+  - Consolidated to minimal, convention-based file structure
+  - Removed the need for kustomize manipulations
+
+- **Updated Documentation**:
+  - Comprehensive README updates for examples
+  - Main project README updated with new standardized approach
+  - Detailed documentation of the environment-specific configuration
 
 ## Current Work Focus
-- Maintain robust, parameterized deployment and testing via agentctl and Helm.
-- Support multi-instance, multi-namespace agent workflows.
-- Ensure all new features and bugfixes are reflected in the running agent pod.
+- Maintain consistent, simplified configuration across all agents
+- Ensure agentctl properly reads and applies environment-specific configurations
+- Support multi-environment, multi-cluster deployments with minimal configuration
 
 ## Recent Changes
-- Helm chart updated with agent.yaml and conditional infra.
-- scripts/deploy.sh and test/test_cli.sh fully integrated with agentctl.
-- All deployment, secret, and pod creation issues resolved.
+- Updated Agent CRD to support EnvironmentConfig
+- Updated utils.Agent struct to match new CRD and parse config correctly
+- Modified agentctl commands for build and deploy to handle environment selection
+- Removed chatbot-router example
+- Standardized hello-agent and chatbot-agent configurations
 
 ## Next Steps
-- Continue to use agentctl and Helm for all agent lifecycle operations.
-- Expand CLI/test coverage as new features are added.
-- Monitor for edge cases in multi-instance deployments.
+- Continue to improve agentctl for better environment handling
+- Add automated testing for environment-specific deployments
+- Consider adding support for secret management per environment
 
 ## Active Decisions & Considerations
-- All infra is managed by the system release; agent releases are agent-only.
-- CLI-first, script-driven workflows for all agent operations.
-- Parameterized, reproducible deployments.
+- Convention over configuration: standardized, minimal agent structure
+- Environment-specific configuration in agent.yaml, not in separate files
+- CLI flags for environment selection in agentctl
+- Agent definition in a single, self-contained directory
 
 ## Important Patterns & Preferences
-- Kubernetes-native, Helm-driven, CLI-first workflows.
-- Modular, testable code and scripts.
-- Clear separation of system infra and agent instance deployment.
+- Kubernetes-native, convention-driven agent definitions
+- Environment-specific configurations for registries, clusters, env vars
+- Clean, minimal directory structure
+- Clear separation between agent definition and deployment configuration
 
 ## Project Insights & Learnings
-- Parameterized Helm charts and CLI integration are critical for robust, multi-instance agent platforms.
-- Early investment in automation and templating pays off in reliability and developer productivity.
+- Standardized configuration significantly reduces complexity
+- Convention-based approaches improve developer productivity
+- Environment-specific configurations provide flexibility without complexity
+- Removing unnecessary abstractions (like the router) simplifies the system

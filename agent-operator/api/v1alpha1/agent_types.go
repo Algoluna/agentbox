@@ -24,6 +24,22 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// EnvironmentConfig defines environment-specific configuration for an agent
+type EnvironmentConfig struct {
+	// Registry is the container registry to use for this environment
+	// +optional
+	Registry string `json:"registry,omitempty"`
+
+	// Cluster is the Kubernetes cluster to target for this environment
+	// +optional
+	Cluster string `json:"cluster,omitempty"`
+
+	// Env is environment-specific environment variables that override
+	// the base environment variables
+	// +optional
+	Env []corev1.EnvVar `json:"env,omitempty"`
+}
+
 // AgentSpec defines the desired state of Agent
 type AgentSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -73,6 +89,14 @@ type AgentSpec struct {
 	// OutputSchemaRef is (future) Output schema
 	// +optional
 	OutputSchemaRef string `json:"outputSchemaRef,omitempty"`
+
+	// Environments is a map of environment-specific configurations
+	// +optional
+	Environments map[string]EnvironmentConfig `json:"environments,omitempty"`
+
+	// ServiceAccountName is the name of the service account to use
+	// +optional
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 }
 
 // AgentStatus defines the observed state of Agent

@@ -35,8 +35,20 @@ var deployCmd = &cobra.Command{
 			return err
 		}
 
-		// Get kubeconfig
+		// Get environment and kubeconfig
+		envName, _ := cmd.Flags().GetString("env")
 		kubeconfig, _ := cmd.Flags().GetString("kubeconfig")
+
+		// Get target cluster from environment if specified
+		cluster := utils.GetClusterForEnvironment(agent, envName)
+		if cluster != "" && cluster != "microk8s" && kubeconfig == "" {
+			// Attempt to get kubeconfig for this cluster
+			kubeconfigPath := os.ExpandEnv(fmt.Sprintf("$HOME/.kube/%s-config", cluster))
+			if _, err := os.Stat(kubeconfigPath); err == nil {
+				kubeconfig = kubeconfigPath
+				fmt.Fprintf(os.Stderr, "Using kubeconfig for cluster %s: %s\n", cluster, kubeconfig)
+			}
+		}
 
 		// Determine namespace based on agent type
 		namespace := utils.GetNamespaceForAgent(agent.Spec.Type)
@@ -86,8 +98,18 @@ var deployCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Created namespace %s\n", namespace)
 		}
 
+		// Merge environment-specific environment variables if needed
+		mergedEnv := utils.MergeEnvironmentConfig(agent, envName)
+
+		// Create a copy of the agent with updated environment variables
+		agentCopy := *agent
+		agentCopy.Spec.Env = mergedEnv
+
+		// Set the image to include registry from environment if specified
+		agentCopy.Spec.Image = utils.GetImageNameForAgent(agent, envName)
+
 		// Construct full Agent resource YAML
-		agentYAML, err := yaml.Marshal(agent)
+		agentYAML, err := yaml.Marshal(agentCopy)
 		if err != nil {
 			return fmt.Errorf("failed to marshal agent yaml: %w", err)
 		}
@@ -145,4 +167,6 @@ var deployCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(deployCmd)
+	deployCmd.Flags().String("env", "microk8s", "Environment to deploy to (dev, microk8s, prod)")
+	deployCmd.Flags().String("kubeconfig", "", "Path to kubeconfig file")
 }

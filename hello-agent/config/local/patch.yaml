@@ -1,8 +1,0 @@
-apiVersion: agents.algoluna.com/v1alpha1
-kind: Agent
-metadata:
-  # Name must match the resource being patched
-  name: agent-sample
-spec:
-  # Set the image to the local registry version
-  image: localhost:32000/hello-agent:latest

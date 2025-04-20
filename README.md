@@ -68,6 +68,51 @@ The agentctl command-line interface is the primary tool for interacting with the
 - Perform end-to-end testing of agent deployments
 - Use smart MicroK8s integration for local development
 
+## Agent Configuration
+
+Agents use a standardized configuration approach with `agent.yaml` files that support environment-specific settings:
+
+```yaml
+apiVersion: agents.algoluna.com/v1alpha1
+kind: Agent
+metadata:
+  name: agent-name
+spec:
+  type: agent-type
+  image: "agent-image:latest"
+  
+  # Base configuration (applied to all environments)
+  env:
+    - name: CONFIG_VAR
+      value: "base-value"
+  
+  # Environment-specific configurations
+  environments:
+    dev:
+      registry: "localhost:32000"
+      cluster: "minikube"
+      env:
+        - name: DEBUG
+          value: "true"
+    
+    microk8s:
+      registry: "localhost:32000"
+      cluster: "microk8s"
+    
+    prod:
+      registry: "prod-registry.example.com"
+      cluster: "prod-cluster"
+      env:
+        - name: DEBUG
+          value: "false"
+```
+
+This configuration approach allows:
+- Common settings in the base spec
+- Environment-specific overrides
+- Different registries and clusters for deployment
+- Environment-specific environment variables
+
 ## Installation
 
 Getting started with AgentBox is straightforward:
@@ -102,7 +147,8 @@ Getting started with AgentBox is straightforward:
 3. **Deploy Your First Agent:**
    ```bash
    # Build and deploy the hello-agent example
-   agentctl launch hello-agent
+   agentctl build hello-agent --env=dev
+   agentctl deploy hello-agent --env=dev
    
    # Check status and logs
    agentctl status hello-agent
@@ -114,11 +160,19 @@ Getting started with AgentBox is straightforward:
 
 ## Examples
 
-The repository contains several example agents that demonstrate different capabilities:
+The repository contains example agents that demonstrate different capabilities:
 
 - **hello-agent:** A simple example demonstrating basic agent functionality
-- **examples/chatbot-agent:** Shows how to build a conversational agent
-- **examples/chatbot-router:** Demonstrates agent-to-agent communication patterns
+- **examples/chatbot-agent:** Shows how to build a conversational agent with LLM integration
+
+Each example follows a standardized structure:
+```
+agent-directory/
+├── Dockerfile       # Container definition for building the agent
+├── agent.yaml       # Agent configuration with environment-specific settings
+├── main.py          # Agent implementation
+└── README.md        # Documentation
+```
 
 Each example includes its own README.md with detailed explanation and customization options. You can explore these examples to understand how to build your own agents with different capabilities.
 

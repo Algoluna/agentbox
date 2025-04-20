@@ -26,23 +26,28 @@ type Agent struct {
 		Namespace string `yaml:"namespace,omitempty"`
 	} `yaml:"metadata"`
 	Spec struct {
-		Type  string `yaml:"type"`
-		Image string `yaml:"image"`
-		Env   []struct {
-			Name  string `yaml:"name"`
-			Value string `yaml:"value"`
-		} `yaml:"env,omitempty"`
-		RunOnce            bool   `yaml:"runOnce,omitempty"`
-		MaxRestarts        int    `yaml:"maxRestarts,omitempty"`
-		TTL                int64  `yaml:"ttl,omitempty"`
-		ServiceAccountName string `yaml:"serviceAccountName,omitempty"`
+		Type               string                 `yaml:"type"`
+		Image              string                 `yaml:"image"`
+		Env                []EnvVar               `yaml:"env,omitempty"`
+		RunOnce            bool                   `yaml:"runOnce,omitempty"`
+		MaxRestarts        int                    `yaml:"maxRestarts,omitempty"`
+		TTL                int64                  `yaml:"ttl,omitempty"`
+		ServiceAccountName string                 `yaml:"serviceAccountName,omitempty"`
+		Environments       map[string]Environment `yaml:"environments,omitempty"`
 	} `yaml:"spec"`
-	Environments map[string]Environment `yaml:"environments,omitempty"`
+}
+
+// EnvVar represents an environment variable
+type EnvVar struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
 }
 
 // Environment represents environment-specific configuration
 type Environment struct {
-	Registry string `yaml:"registry"`
+	Registry string   `yaml:"registry"`
+	Cluster  string   `yaml:"cluster,omitempty"`
+	Env      []EnvVar `yaml:"env,omitempty"`
 }
 
 // ReadAgentYAML reads and parses the agent.yaml file
@@ -167,7 +172,8 @@ func GetImageNameForAgent(agent *Agent, envName string) string {
 		envName = "microk8s" // Default to microk8s environment
 	}
 
-	environment, ok := agent.Environments[envName]
+	// Check if environment exists in spec.environments
+	environment, ok := agent.Spec.Environments[envName]
 	if !ok {
 		// No environment-specific registry, use default image
 		return agent.Spec.Image
@@ -183,6 +189,60 @@ func GetImageNameForAgent(agent *Agent, envName string) string {
 
 	// Construct full image name with registry
 	return fmt.Sprintf("%s/%s:%s", environment.Registry, imageName, tag)
+}
+
+// MergeEnvironmentConfig merges base environment variables with environment-specific ones
+func MergeEnvironmentConfig(agent *Agent, envName string) []EnvVar {
+	// Start with base environment variables
+	result := make([]EnvVar, len(agent.Spec.Env))
+	copy(result, agent.Spec.Env)
+
+	if envName == "" {
+		return result
+	}
+
+	// Get environment-specific config
+	environment, ok := agent.Spec.Environments[envName]
+	if !ok {
+		return result
+	}
+
+	// Create a map for easy lookup and override
+	envMap := make(map[string]string)
+	for _, env := range result {
+		envMap[env.Name] = env.Value
+	}
+
+	// Apply environment-specific variables (overriding base ones if they exist)
+	for _, env := range environment.Env {
+		envMap[env.Name] = env.Value
+	}
+
+	// Convert back to slice
+	result = []EnvVar{}
+	for name, value := range envMap {
+		result = append(result, EnvVar{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	return result
+}
+
+// GetClusterForEnvironment returns the cluster to target for the given environment
+func GetClusterForEnvironment(agent *Agent, envName string) string {
+	if envName == "" {
+		envName = "microk8s" // Default environment
+	}
+
+	environment, ok := agent.Spec.Environments[envName]
+	if !ok || environment.Cluster == "" {
+		// Default to environment name if no cluster specified
+		return envName
+	}
+
+	return environment.Cluster
 }
 
 // Helper function to get kubeconfig

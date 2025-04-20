@@ -83,4 +83,5 @@ var buildCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(buildCmd)
+	buildCmd.Flags().String("env", "microk8s", "Environment to build for (dev, microk8s, prod)")
 }

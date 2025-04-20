@@ -5,12 +5,28 @@ metadata:
 spec:
   type: hello
   image: "hello-agent:latest"
+  
+  # Optional configuration with sensible defaults
   runOnce: false
   maxRestarts: -1
   ttl: 0
-    
-  # Environment configurations
+  
+  # Environment-specific configurations
   environments:
-    # Local microk8s environment
+    dev:
+      registry: "localhost:32000"
+      cluster: "minikube"
+      env:
+        - name: DEBUG
+          value: "true"
+    
     microk8s:
       registry: "localhost:32000"
+      cluster: "microk8s"
+    
+    prod:
+      registry: "prod-registry.example.com"
+      cluster: "prod-cluster"
+      env:
+        - name: DEBUG
+          value: "false"
