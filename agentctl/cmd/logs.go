@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
+
+	"github.com/Algoluna/agentctl/pkg/config"
+	"github.com/Algoluna/agentctl/pkg/utils"
 )
 
 var logsCmd = &cobra.Command{
@@ -23,27 +22,25 @@ var logsCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		agentName := args[0]
-
 		kubeconfig, _ := cmd.Flags().GetString("kubeconfig")
-		namespace, _ := cmd.Flags().GetString("namespace")
 
-		if kubeconfig == "" {
-			if home := homedir.HomeDir(); home != "" {
-				kubeconfig = filepath.Join(home, ".kube", "config")
-			}
-		}
-
-		// Create Kubernetes client config
-		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+		// Get agent type to determine namespace
+		agentType, err := utils.GetAgentTypeFromName(agentName, kubeconfig)
 		if err != nil {
-			// Try in-cluster config as fallback
-			config, err = rest.InClusterConfig()
-			if err != nil {
-				return fmt.Errorf("unable to get kubernetes config: %v", err)
-			}
+			return fmt.Errorf("error determining agent type: %v", err)
 		}
 
-		clientset, err := kubernetes.NewForConfig(config)
+		namespace := utils.GetNamespaceForAgent(agentType)
+
+		// Create Kubernetes client config using our helper
+		env, _ := cmd.Flags().GetString("env")
+		kubeConfig := config.NewKubeConfig(kubeconfig, env)
+		restConfig, err := kubeConfig.GetClientConfig()
+		if err != nil {
+			return fmt.Errorf("unable to get kubernetes config: %v", err)
+		}
+
+		clientset, err := kubernetes.NewForConfig(restConfig)
 		if err != nil {
 			return fmt.Errorf("error creating clientset: %v", err)
 		}

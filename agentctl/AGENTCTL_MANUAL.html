@@ -1,168 +1,235 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Agentctl CLI Manual</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #222; }
-    h1, h2, h3 { color: #2c3e50; }
-    pre, code { background: #f4f4f4; border-radius: 4px; padding: 0.5em; }
-    .section { margin-bottom: 2em; }
-    .command { color: #2980b9; font-weight: bold; }
-    .example { background: #eef6fb; border-left: 4px solid #2980b9; padding: 1em; margin: 1em 0; }
-    ul { margin-left: 2em; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>agentctl - Agent Management CLI</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2, h3 {
+            color: #0066cc;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .note {
+            background-color: #fff8dc;
+            border-left: 4px solid #ffeb3b;
+            padding: 10px 15px;
+            margin: 15px 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
 </head>
 <body>
-  <h1>Agentctl CLI Manual</h1>
-  <div class="section">
+    <h1>agentctl - Agent Management CLI</h1>
+    <p>A command-line interface for building, deploying, and managing AI agents in Kubernetes.</p>
+    
     <h2>Overview</h2>
-    <p>
-      <b>agentctl</b> is a command-line tool for building, deploying, managing, and interacting with AI agents on Kubernetes. It integrates tightly with Helm and Kubernetes, supporting multi-instance, multi-namespace workflows, and robust automation for agent lifecycle management.
-    </p>
-  </div>
-
-  <div class="section">
-    <h2>Installation</h2>
-    <ol>
-      <li>Ensure you have <b>Go 1.21+</b>, <b>Docker</b>, <b>Helm v3+</b>, and <b>kubectl</b> installed.</li>
-      <li>Clone the repository and build agentctl:
-        <pre><code>cd agentctl
-go build -o agentctl .</code></pre>
-      </li>
-      <li>Ensure <code>agentctl</code> is in your <code>PATH</code> or use <code>./agentctl</code> directly.</li>
-    </ol>
-  </div>
-
-  <div class="section">
-    <h2>Command Reference</h2>
-    <h3 class="command">build</h3>
-    <p>Build the agent Docker image and import it into microk8s/containerd.</p>
-    <pre><code>agentctl build --agent-name=hello-agent --image-tag=debug-20250420-123456 --import-microk8s</code></pre>
-    <ul>
-      <li><b>--agent-name</b>: Name of the agent (required)</li>
-      <li><b>--image-tag</b>: Image tag (default: latest)</li>
-      <li><b>--import-microk8s</b>: Import image to microk8s (default: true)</li>
-    </ul>
-
-    <h3 class="command">deploy</h3>
-    <p>Deploy an agent using Helm. Passes all required values for agent CR creation and disables infra for agent-only releases.</p>
-    <pre><code>agentctl deploy --agent-name=hello-agent --namespace=agent-hello-agent --image-tag=debug-20250420-123456 \
-  --set globalSecrets.enabled=false \
-  --set postgresql.enabled=false \
-  --set valkey.enabled=false \
-  --set agentOperator.enabled=false \
-  --set agent.name=hello-agent \
-  --set agent.type=hello-agent \
-  --set agent.image=localhost:32000/hello-agent:debug-20250420-123456
-</code></pre>
-    <ul>
-      <li><b>--agent-name</b>: Name of the agent instance (required)</li>
-      <li><b>--namespace</b>: Kubernetes namespace to deploy to (required)</li>
-      <li><b>--image-tag</b>: Agent Docker image tag (required)</li>
-      <li><b>--set</b>: Additional Helm values (see above for required flags)</li>
-    </ul>
-
-    <h3 class="command">logs</h3>
-    <p>Tail logs for an agent pod by name/label.</p>
-    <pre><code>agentctl logs hello-agent --namespace=agent-hello-agent</code></pre>
-
-    <h3 class="command">message</h3>
-    <p>Send a message to a running agent and receive a reply via Valkey/Redis.</p>
-    <pre><code>agentctl message --agent-name=hello-agent --payload='{"test": "ping"}' --redis-url=redis://localhost:6379 --timeout=10</code></pre>
-    <ul>
-      <li><b>--agent-name</b>: Name of the agent (required)</li>
-      <li><b>--payload</b>: Message payload (required, JSON string recommended)</li>
-      <li><b>--redis-url</b>: Redis/Valkey URL (default: redis://localhost:6379)</li>
-      <li><b>--timeout</b>: Timeout in seconds to wait for reply (default: 30)</li>
-    </ul>
-
-    <h3 class="command">status</h3>
-    <p>Show status for a specific agent or list all agents.</p>
-    <pre><code>agentctl status
-agentctl status hello-agent</code></pre>
-
-    <h3 class="command">launch</h3>
-    <p>Launch an agent from a YAML manifest.</p>
-    <pre><code>agentctl launch /path/to/agent.yaml</code></pre>
-  </div>
-
-  <div class="section">
-    <h2>Usage Examples</h2>
-    <div class="example">
-      <b>Build and deploy a new agent instance:</b>
-      <pre><code>
-# Build the agent image
-agentctl build --agent-name=hello-agent --image-tag=debug-20250420-123456 --import-microk8s
-
-# Deploy the agent (agent-only release)
-agentctl deploy --agent-name=hello-agent --namespace=agent-hello-agent --image-tag=debug-20250420-123456 \
-  --set globalSecrets.enabled=false \
-  --set postgresql.enabled=false \
-  --set valkey.enabled=false \
-  --set agentOperator.enabled=false \
-  --set agent.name=hello-agent \
-  --set agent.type=hello-agent \
-  --set agent.image=localhost:32000/hello-agent:debug-20250420-123456
-      </code></pre>
+    <p>agentctl simplifies the workflow for creating and managing AI agents in a Kubernetes environment. The CLI follows convention over configuration principles, making it easy to build, deploy, and interact with agents.</p>
+    
+    <div class="note">
+        <strong>Note:</strong> agentctl is designed to work with the agent-operator system. Ensure the operator is properly installed in your cluster before using these commands.
     </div>
-    <div class="example">
-      <b>Tail logs for a running agent:</b>
-      <pre><code>agentctl logs hello-agent --namespace=agent-hello-agent</code></pre>
-    </div>
-    <div class="example">
-      <b>Send a message to an agent and receive a reply:</b>
-      <pre><code>agentctl message --agent-name=hello-agent --payload='{"test": "ping"}' --redis-url=redis://localhost:6379 --timeout=10</code></pre>
-    </div>
-    <div class="example">
-      <b>Check agent status:</b>
-      <pre><code>agentctl status
-agentctl status hello-agent</code></pre>
-    </div>
-    <div class="example">
-      <b>Launch an agent from a manifest:</b>
-      <pre><code>agentctl launch /path/to/agent.yaml</code></pre>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>Integration with Scripts and Helm</h2>
+    
+    <h2>Agent Structure</h2>
+    <p>agentctl expects agents to follow a standard directory structure:</p>
+    <pre>
+agent-name/
+├── Dockerfile                 # Required: Container definition
+├── main.py                    # Required: Agent entry point
+├── agent.yaml                 # Required: Agent manifest with defaults
+└── rbac/                      # Optional: RBAC resources if needed
+    ├── role.yaml
+    ├── rolebinding.yaml
+    └── serviceaccount.yaml</pre>
+    
+    <h2>Commands</h2>
+    
+    <h3>One-Command Workflow</h3>
+    <table>
+        <tr>
+            <th>Command</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><code>agentctl launch [directory]</code></td>
+            <td>All-in-one command to build, deploy, and start an agent from the specified directory. Shows agent logs after startup.</td>
+        </tr>
+    </table>
+    
+    <h3>Individual Steps</h3>
+    <table>
+        <tr>
+            <th>Command</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><code>agentctl build [directory]</code></td>
+            <td>Build the agent Docker image from the specified directory.</td>
+        </tr>
+        <tr>
+            <td><code>agentctl deploy [directory]</code></td>
+            <td>Deploy the agent to Kubernetes using the agent.yaml from the specified directory.</td>
+        </tr>
+    </table>
+    
+    <h3>Monitoring and Interaction</h3>
+    <table>
+        <tr>
+            <th>Command</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><code>agentctl status [agent-name]</code></td>
+            <td>Show status information for all agents or a specific agent.</td>
+        </tr>
+        <tr>
+            <td><code>agentctl logs &lt;agent-name&gt; [--follow]</code></td>
+            <td>View logs from an agent pod.</td>
+        </tr>
+        <tr>
+            <td><code>agentctl message &lt;agent-name&gt; --payload='{"key":"value"}'</code></td>
+            <td>Send a message to an agent and display the response.</td>
+        </tr>
+    </table>
+    
+    <h2>Global Flags</h2>
+    <table>
+        <tr>
+            <th>Flag</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><code>--kubeconfig, -k</code></td>
+            <td>Path to the kubeconfig file (default: $HOME/.kube/config)</td>
+        </tr>
+        <tr>
+            <td><code>--env</code></td>
+            <td>Environment to use (e.g., microk8s, prod)</td>
+        </tr>
+    </table>
+    
+    <h2>Agent Configuration</h2>
+    <p>Agents are defined using a standard agent.yaml file:</p>
+    <pre>
+apiVersion: agents.algoluna.com/v1alpha1
+kind: Agent
+metadata:
+  name: example-agent  # Unique instance name
+spec:
+  type: example        # Agent type (determines namespace)
+  image: "example-agent:latest"
+  runOnce: false       # Whether the agent should run to completion
+  maxRestarts: -1      # How many times to restart on failure (-1: infinite)
+  ttl: 0               # Time-to-live in seconds (0: indefinite)
+  
+  # Optional environment variables
+  env:
+    - name: MODEL_NAME
+      value: "gemini-pro"
+    
+  # Environment-specific configurations
+  environments:
+    # Local microk8s environment
+    microk8s:
+      registry: "localhost:32000"
+</pre>
+    
+    <h2>Conventions</h2>
     <ul>
-      <li><b>scripts/deploy.sh</b>: Automates the full build, deploy, and verification workflow using agentctl and Helm.</li>
-      <li>System release (agentbox-system) deploys shared infra; agent releases only deploy agent CRs.</li>
-      <li>All Helm values are parameterized for multi-instance, multi-namespace support.</li>
+        <li>The <strong>agent name</strong> is defined in <code>metadata.name</code> and becomes the agent instance identifier.</li>
+        <li>The <strong>agent type</strong> is defined in <code>spec.type</code> and determines the namespace (<code>agent-{type}</code>).</li>
+        <li>The <strong>Dockerfile</strong> should be in the root of the agent directory.</li>
+        <li>Optional <strong>RBAC resources</strong> should be in an <code>rbac/</code> subdirectory.</li>
     </ul>
-  </div>
+    
+    <h2>Example Usage</h2>
+    
+    <h3>Creating a New Agent</h3>
+    <pre>
+# 1. Create the agent directory and files
+mkdir -p my-agent/rbac
+cd my-agent
 
-  <div class="section">
-    <h2>Multi-Instance and Multi-Namespace Deployment</h2>
-    <ul>
-      <li>Deploy multiple agents by specifying unique <code>--agent-name</code>, <code>--namespace</code>, and <code>--image-tag</code> for each instance.</li>
-      <li>Each agent runs in its own namespace with isolated secrets and resources.</li>
-      <li>Shared infra is only deployed once in the system namespace.</li>
-    </ul>
-  </div>
+# 2. Create the Dockerfile
+echo 'FROM python:3.9-slim
+WORKDIR /app
+COPY main.py /app/
+ENV PYTHONUNBUFFERED=1
+CMD ["python", "main.py"]' > Dockerfile
 
-  <div class="section">
-    <h2>Troubleshooting & Best Practices</h2>
-    <ul>
-      <li>Always use unique image tags for each build to avoid cache confusion.</li>
-      <li>Use <code>--set globalSecrets.enabled=false</code> and similar flags for agent-only releases to avoid Helm secret conflicts.</li>
-      <li>Check pod and CR status with <code>agentctl status</code> and <code>kubectl get pods -n <namespace></code>.</li>
-      <li>Review logs with <code>agentctl logs</code> for debugging agent startup and infra connections.</li>
-      <li>For advanced Helm usage, see <code>helm --help</code> and the chart's <code>values.yaml</code> for all available options.</li>
-    </ul>
-  </div>
+# 3. Create a simple agent
+echo 'import os
+import time
+print(f"Starting agent {os.environ.get(\"AGENT_ID\")}")
+while True:
+    print("Agent running...")
+    time.sleep(10)' > main.py
 
-  <div class="section">
-    <h2>Further Reading</h2>
-    <ul>
-      <li><a href="../memory-bank/activeContext.md">Project Active Context</a></li>
-      <li><a href="../memory-bank/progress.md">Project Progress</a></li>
-      <li><a href="../README.md">Project README</a></li>
-      <li><a href="https://helm.sh/docs/">Helm Documentation</a></li>
-      <li><a href="https://kubernetes.io/docs/">Kubernetes Documentation</a></li>
-    </ul>
-  </div>
+# 4. Create the agent.yaml
+echo 'apiVersion: agents.algoluna.com/v1alpha1
+kind: Agent
+metadata:
+  name: my-agent
+spec:
+  type: example
+  image: "my-agent:latest"
+  runOnce: false
+  environments:
+    microk8s:
+      registry: "localhost:32000"' > agent.yaml
+
+# 5. Build and deploy the agent with a single command
+agentctl launch .
+</pre>
+    
+    <h3>Monitoring the Agent</h3>
+    <pre>
+# Check agent status
+agentctl status my-agent
+
+# View agent logs
+agentctl logs my-agent --follow
+
+# Send a message
+agentctl message my-agent --payload='{"command": "status"}'
+</pre>
+    
+    <div class="note">
+        <strong>Tip:</strong> The agent-operator automatically creates dedicated namespaces for each agent type (e.g., <code>agent-example</code> for type "example"). You don't need to create or specify these namespaces manually.
+    </div>
+    
 </body>
 </html>

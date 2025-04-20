@@ -1,45 +1,76 @@
 # Chatbot Agent Example
 
-This is a per-user chatbot agent that maintains conversation history and uses Google Gemini Flash 2.0 (via Google ADK) to generate responses.
+This is a simple chatbot agent that:
+1. Receives messages from users
+2. Processes them using an LLM (Google Gemini Flash by default)
+3. Returns the LLM's response
+4. Maintains conversation history for context
 
-## Environment Variables
+## Key Features
 
-- `MODEL_NAME`: (optional) The model to use (default: `models/gemini-flash-2.0`)
-- `GEMINI_API_KEY`: **(required)** Your Gemini API key for LLM access
+- **Long-running agent**: The agent stays active indefinitely (runOnce=false)
+- **Conversation persistence**: Conversation history is maintained in the agent state
+- **LLM integration**: Uses the agent_sdk to communicate with Google's Gemini LLM
+- **Configurable model**: Can use different Gemini models via environment variable
 
-## Example Agent CR
+## Usage
 
-```yaml
-apiVersion: agents.algoluna.com/v1alpha1
-kind: Agent
-metadata:
-  name: chatbot-agent
-spec:
-  type: chatbot-agent
-  image: chatbot-agent:latest
-  runOnce: false
-  env:
-    - name: AGENT_TYPE
-      value: chatbot-agent
-    - name: GEMINI_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: gemini-api-key
-          key: api-key
+### Run locally:
+
+1. Build and deploy the agent:
+```bash
+agentctl build --path examples/chatbot-agent --tag chatbot-agent:latest
+agentctl deploy --manifest examples/chatbot-agent/chatbot-agent.yaml
 ```
 
-## Providing the API Key
-
-For security, store your Gemini API key in a Kubernetes Secret:
-
-```sh
-kubectl create secret generic gemini-api-key --from-literal=api-key=YOUR_GEMINI_API_KEY
+2. Send a message to the agent:
+```bash
+agentctl message --agent-name chatbot-agent --payload '{"text": "Hello, how are you today?"}'
 ```
 
-The agent will read the key from the environment and pass it to the Google ADK LLM client.
+The agent will process the message using the configured LLM and return a response.
 
-## Notes
+### Configuration
 
-- The ModelManager expects the API key in the `GEMINI_API_KEY` environment variable.
-- Make sure the secret is created in the same namespace as the agent.
-- The router agent can also be configured with the API key if it needs to use the LLM.
+The agent's behavior can be customized through environment variables in the deployment manifest:
+
+- `MODEL_NAME`: The Gemini model to use (default: "gemini-pro")
+  - Options include "gemini-pro", "gemini-flash", etc.
+- `PYTHONUNBUFFERED`: Set to "1" to ensure logs are output immediately
+
+## Implementation Details
+
+### Message Format
+
+**Input**: Expects a JSON payload with a "text" field:
+```json
+{
+  "text": "User's message here"
+}
+```
+
+**Output**: Returns a JSON payload with:
+```json
+{
+  "text": "LLM's response here",
+  "conversation_length": 1 // Number of turns in the conversation
+}
+```
+
+### Conversation Storage
+
+The agent uses the Agent SDK's context storage to maintain conversation history between messages. This allows for multi-turn conversations where the LLM is aware of previous exchanges.
+
+## Security & Privacy
+
+- The agent does not store any user data outside of the Agent SDK's state storage
+- Conversation history is only maintained for the current user session
+- Communication with the Gemini API adheres to Google's privacy and security guidelines
+
+## Communication
+
+The agent leverages the Agentbox messaging system through Redis/Valkey streams. Messages can be sent through:
+
+1. Direct Redis/Valkey connection (advanced usage)
+2. The agentctl CLI tool (recommended)
+3. The agent-operator API proxy (for production/Kubernetes environments)

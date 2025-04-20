@@ -3,88 +3,105 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	"os/exec"
+	"time"
 
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
+
+	"github.com/Algoluna/agentctl/pkg/utils"
 )
 
 var launchCmd = &cobra.Command{
-	Use:   "launch [agent yaml file]",
-	Short: "Launch an agent from YAML file",
-	Long:  `Launch an agent by applying the specified YAML file to the Kubernetes cluster.`,
-	Args:  cobra.ExactArgs(1),
+	Use:   "launch [directory]",
+	Short: "Build, deploy, and launch an agent",
+	Long:  `One-command workflow to build, deploy, and launch an agent from the specified directory.`,
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Get file path
-		filename := args[0]
-
-		// Read YAML file
-		yamlFile, err := os.ReadFile(filename)
-		if err != nil {
-			return fmt.Errorf("error reading file: %v", err)
+		// Get directory
+		directory := "."
+		if len(args) > 0 {
+			directory = args[0]
 		}
 
-		// Get Kubernetes configuration
+		// Read agent.yaml
+		agent, err := utils.ReadAgentYAML(directory)
+		if err != nil {
+			return err
+		}
+
+		// Get kubeconfig and environment
 		kubeconfig, _ := cmd.Flags().GetString("kubeconfig")
-		namespace, _ := cmd.Flags().GetString("namespace")
+		envName, _ := cmd.Flags().GetString("env")
 
-		if kubeconfig == "" {
-			if home := homedir.HomeDir(); home != "" {
-				kubeconfig = filepath.Join(home, ".kube", "config")
-			}
+		// 1. Build the agent image
+		fmt.Fprintf(os.Stderr, "=== Building agent image ===\n")
+		buildArgs := []string{"build"}
+		if len(args) > 0 {
+			buildArgs = append(buildArgs, args[0])
+		}
+		if kubeconfig != "" {
+			buildArgs = append(buildArgs, "--kubeconfig", kubeconfig)
+		}
+		if envName != "" {
+			buildArgs = append(buildArgs, "--env", envName)
 		}
 
-		// Create Kubernetes client config
-		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			// Try in-cluster config as fallback
-			config, err = rest.InClusterConfig()
-			if err != nil {
-				return fmt.Errorf("unable to get kubernetes config: %v", err)
-			}
+		buildCmd := exec.Command(os.Args[0], buildArgs...)
+		buildCmd.Stdout = os.Stdout
+		buildCmd.Stderr = os.Stderr
+		if err := buildCmd.Run(); err != nil {
+			return fmt.Errorf("build command failed: %v", err)
 		}
 
-		// Create dynamic client
-		dynamicClient, err := dynamic.NewForConfig(config)
-		if err != nil {
-			return fmt.Errorf("error creating client: %v", err)
+		// 2. Deploy the agent
+		fmt.Fprintf(os.Stderr, "=== Deploying agent ===\n")
+		deployArgs := []string{"deploy"}
+		if len(args) > 0 {
+			deployArgs = append(deployArgs, args[0])
+		}
+		if kubeconfig != "" {
+			deployArgs = append(deployArgs, "--kubeconfig", kubeconfig)
+		}
+		if envName != "" {
+			deployArgs = append(deployArgs, "--env", envName)
 		}
 
-		// Decode YAML to unstructured object
-		decUnstructured := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-		obj := &unstructured.Unstructured{}
-		_, gvk, err := decUnstructured.Decode(yamlFile, nil, obj)
-		if err != nil {
-			return fmt.Errorf("error decoding YAML: %v", err)
+		deployCmd := exec.Command(os.Args[0], deployArgs...)
+		deployCmd.Stdout = os.Stdout
+		deployCmd.Stderr = os.Stderr
+		if err := deployCmd.Run(); err != nil {
+			return fmt.Errorf("deploy command failed: %v", err)
 		}
 
-		// Make sure it's an Agent resource
-		if gvk.Group != "agents.algoluna.com" || gvk.Kind != "Agent" {
-			return fmt.Errorf("file doesn't contain an agents.algoluna.com/Agent resource")
+		// 3. Show agent logs
+		fmt.Fprintf(os.Stderr, "=== Agent logs ===\n")
+
+		// Determine namespace based on agent type
+		namespace := utils.GetNamespaceForAgent(agent.Spec.Type)
+
+		// Wait a moment for logs to start flowing
+		time.Sleep(2 * time.Second)
+
+		logsArgs := []string{"logs", agent.Metadata.Name, "--follow"}
+		if kubeconfig != "" {
+			logsArgs = append(logsArgs, "--kubeconfig", kubeconfig)
 		}
 
-		// Set namespace if not already set
-		if obj.GetNamespace() == "" {
-			obj.SetNamespace(namespace)
+		logsCmd := exec.Command(os.Args[0], logsArgs...)
+		logsCmd.Stdout = os.Stdout
+		logsCmd.Stderr = os.Stderr
+
+		// Run logs command but don't wait for it to complete (user can Ctrl+C)
+		if err := logsCmd.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to start logs: %v\n", err)
 		}
 
-		// Get resource for Agent
-		agentsResource := dynamicClient.Resource(
-			gvk.GroupVersion().WithResource("agents"))
+		fmt.Fprintf(os.Stderr, "\nAgent %s successfully launched in namespace %s!\n", agent.Metadata.Name, namespace)
+		fmt.Fprintf(os.Stderr, "Use Ctrl+C to stop watching logs.\n")
 
-		// Create the Agent resource
-		result, err := agentsResource.Namespace(obj.GetNamespace()).Create(cmd.Context(), obj, metav1.CreateOptions{})
-		if err != nil {
-			return fmt.Errorf("error creating agent: %v", err)
-		}
+		// Wait for logs command to finish (when user presses Ctrl+C)
+		logsCmd.Wait()
 
-		fmt.Printf("Agent '%s' launched in namespace '%s'\n", result.GetName(), result.GetNamespace())
 		return nil
 	},
 }

@@ -20,5 +20,5 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringP("kubeconfig", "k", "", "path to kubeconfig file (default is $HOME/.kube/config)")
-	rootCmd.PersistentFlags().StringP("namespace", "n", "default", "kubernetes namespace")
+	rootCmd.PersistentFlags().String("env", "microk8s", "environment to use (e.g., microk8s, prod)")
 }

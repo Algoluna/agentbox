@@ -1,0 +1,16 @@
+apiVersion: agents.algoluna.com/v1alpha1
+kind: Agent
+metadata:
+  name: hello-agent
+spec:
+  type: hello
+  image: "hello-agent:latest"
+  runOnce: false
+  maxRestarts: -1
+  ttl: 0
+    
+  # Environment configurations
+  environments:
+    # Local microk8s environment
+    microk8s:
+      registry: "localhost:32000"

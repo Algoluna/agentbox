@@ -6,7 +6,7 @@ set -e
 if [[ "$1" == "clean" || "$1" == "cleanup" ]]; then
   echo "=== Cleaning up all AgentBox namespaces and build artifacts ==="
   kubectl delete namespace agentbox-system --ignore-not-found
-  kubectl delete namespace agent-hello-agent --ignore-not-found
+  kubectl delete namespace agent-hello --ignore-not-found
   rm -f operator.tar agent-debug.tar
   echo "Cleanup complete."
   exit 0
@@ -14,15 +14,12 @@ fi
 
 # Define image tags
 OPERATOR_IMAGE_BASE="agent-operator"
-HELLO_AGENT_IMAGE_BASE="hello-agent"
-HELLO_AGENT_IMAGE_TAG="debug-$(date +%Y%m%d-%H%M%S)"
 OPERATOR_IMAGE_TAG="latest"
 MICROK8S_REGISTRY="localhost:32000"
 OPERATOR_IMAGE="${MICROK8S_REGISTRY}/${OPERATOR_IMAGE_BASE}:${OPERATOR_IMAGE_TAG}"
-HELLO_AGENT_IMAGE="${MICROK8S_REGISTRY}/${HELLO_AGENT_IMAGE_BASE}:${HELLO_AGENT_IMAGE_TAG}"
 
 NAMESPACE="agentbox-system"
-RELEASE_NAME="agentbox"
+HELLO_AGENT_DIR="$(pwd)/hello-agent"
 
 echo "--- Setting up Prerequisites ---"
 ./scripts/setup_prereqs.sh
@@ -56,32 +53,25 @@ cd ..
 cp agent_sdk/dist/agent_sdk-*.whl hello-agent/
 echo "agent_sdk wheel built and copied to hello-agent/"
 
-echo "--- Building Hello Agent Image with agentctl ---"
-cd agentctl
-go build -o agentctl .
-./agentctl build --agent-name=hello-agent --image-tag=${HELLO_AGENT_IMAGE_TAG} --import-microk8s
-cd ..
-echo "Hello Agent Image Built and Imported: ${HELLO_AGENT_IMAGE}"
-
 echo "--- Installing CRDs ---"
 ./scripts/install_crds.sh
 
-echo "--- Deploying components using agentctl (Helm) ---"
+echo "--- Building and deploying Hello Agent using agentctl ---"
 cd agentctl
-./agentctl deploy --agent-name=hello-agent --namespace=agent-hello-agent --image-tag=${HELLO_AGENT_IMAGE_TAG} \
-  --set globalSecrets.enabled=false \
-  --set postgresql.enabled=false \
-  --set valkey.enabled=false \
-  --set agentOperator.enabled=false \
-  --set agent.name=hello-agent \
-  --set agent.type=hello-agent \
-  --set agent.image=${HELLO_AGENT_IMAGE}
-cd ..
+go build -o agentctl .
+
+# Use new simplified commands
+echo "--- Building Hello Agent Image ---"
+./agentctl build ${HELLO_AGENT_DIR} --env microk8s
+echo "Hello Agent Image Built and Imported"
+
+echo "--- Deploying Hello Agent ---"
+./agentctl deploy ${HELLO_AGENT_DIR}
 
 echo "--- Waiting for Hello Agent Pod to be Ready ---"
-sleep 10
+sleep 5
 AGENT_POD_LABEL="agent-name=hello-agent"
-AGENT_NAMESPACE="agent-hello-agent"
+AGENT_NAMESPACE="agent-hello" # Based on agent type 'hello' in hello-agent/agent.yaml
 
 TIMEOUT=180
 INTERVAL=5
@@ -124,13 +114,13 @@ OPERATOR_POD=$(kubectl get pod -l app.kubernetes.io/component=agent-operator -n 
 kubectl logs ${OPERATOR_POD} -n ${NAMESPACE} --tail=50
 echo ""
 echo "Agent Logs (via agentctl):"
-cd agentctl
-./agentctl logs hello-agent --namespace=agent-hello-agent
-cd ..
+# Using new simplified command without namespace parameter
+./agentctl logs hello-agent
 
 echo "--- Testing agentctl status ---"
-cd agentctl
 ./agentctl status
 cd ..
 
 echo "--- Deployment, Verification, and Testing Complete ---"
+echo "You can now interact with the hello-agent using:"
+echo "  agentctl/agentctl message hello-agent --payload='{\"text\": \"Hello\"}'"

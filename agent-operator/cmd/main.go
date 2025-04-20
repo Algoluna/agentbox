@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	agentsv1alpha1 "github.com/Algoluna/agent-operator/api/v1alpha1"
+	"github.com/Algoluna/agent-operator/internal/apiserver"
 	"github.com/Algoluna/agent-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -209,6 +210,22 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Agent")
 		os.Exit(1)
 	}
+
+	// Set up API server
+	apiServer, err := apiserver.SetupAPIServer(mgr.GetClient(), mgr.GetScheme())
+	if err != nil {
+		setupLog.Error(err, "unable to set up API server")
+		os.Exit(1)
+	}
+
+	// Add the API server to the manager
+	if err := mgr.Add(apiServer); err != nil {
+		setupLog.Error(err, "unable to add API server to manager")
+		os.Exit(1)
+	}
+
+	setupLog.Info("API server initialized", "port", "8080", "endpoints", []string{"/api/v1/agents/{name}/messages"})
+
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {

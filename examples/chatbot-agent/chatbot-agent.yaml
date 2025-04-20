@@ -1,0 +1,16 @@
+apiVersion: agents.algoluna.com/v1alpha1
+kind: Agent
+metadata:
+  name: chatbot-agent
+  namespace: agent-chatbot
+spec:
+  type: chatbot
+  image: "chatbot-agent:latest"
+  runOnce: false  # This is a long-running agent
+  maxRestarts: -1  # Infinite restarts
+  ttl: 0  # No time-to-live limit
+  env:
+    - name: MODEL_NAME
+      value: "gemini-pro"  # Default to Gemini Pro
+    - name: PYTHONUNBUFFERED
+      value: "1"  # Ensure logs are output immediately

@@ -1,111 +1,148 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
-)
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/yaml"
 
-var (
-	deployAgentName    string
-	deployNamespace    string
-	deployImageTag     string
-	deployChartPath    string
-	deployValuesFile   string
-	deployMicrok8sVals string
-	deployReleaseName  string
-	deploySetValues    []string
+	"github.com/Algoluna/agentctl/pkg/utils"
 )
 
 var deployCmd = &cobra.Command{
-	Use:   "deploy",
-	Short: "Deploy an agent using Helm",
-	Long:  `Build and deploy an agent using Helm, supporting multiple instances and custom image tags.`,
+	Use:   "deploy [directory]",
+	Short: "Deploy an agent to the cluster",
+	Long:  `Deploy an agent to the cluster by applying RBAC resources and creating the Agent CR.`,
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Validate required flags
-		if deployAgentName == "" {
-			return fmt.Errorf("--agent-name is required")
-		}
-		if deployNamespace == "" {
-			return fmt.Errorf("--namespace is required")
-		}
-		if deployImageTag == "" {
-			return fmt.Errorf("--image-tag is required")
-		}
-		if deployChartPath == "" {
-			deployChartPath = filepath.Join("..", "helm")
-		}
-		if deployValuesFile == "" {
-			deployValuesFile = filepath.Join("..", "helm", "values.yaml")
-		}
-		if deployMicrok8sVals == "" {
-			deployMicrok8sVals = filepath.Join("..", "helm", "values-microk8s.yaml")
-		}
-		if deployReleaseName == "" {
-			deployReleaseName = "agent-" + deployAgentName
+		// Get directory
+		directory := "."
+		if len(args) > 0 {
+			directory = args[0]
 		}
 
-		// Build the agent image (optional: could call agentctl build here)
-		fmt.Fprintf(os.Stderr, "NOTE: Ensure the agent image is built and imported before deploying.\n")
-
-		// Construct Helm command
-		helmArgs := []string{
-			"upgrade", "--install", deployReleaseName, deployChartPath,
-			"--namespace", deployNamespace,
-			"-f", deployValuesFile,
-			"-f", deployMicrok8sVals,
-			"--set", fmt.Sprintf("agentOperator.image.tag=%s", deployImageTag),
-			"--set", fmt.Sprintf("agentType=%s", deployAgentName),
-			"--set", fmt.Sprintf("agentName=%s", deployAgentName),
-			"--create-namespace",
-			"--wait",
-		}
-		for _, setVal := range deploySetValues {
-			helmArgs = append(helmArgs, "--set", setVal)
+		// Read agent.yaml
+		agent, err := utils.ReadAgentYAML(directory)
+		if err != nil {
+			return err
 		}
 
-		fmt.Fprintf(os.Stderr, "Running: helm %s\n", strings.Join(helmArgs, " "))
+		// Get kubeconfig
+		kubeconfig, _ := cmd.Flags().GetString("kubeconfig")
 
-		helmCmd := exec.Command("helm", helmArgs...)
-		helmCmd.Stdout = os.Stdout
-		helmCmd.Stderr = os.Stderr
+		// Determine namespace based on agent type
+		namespace := utils.GetNamespaceForAgent(agent.Spec.Type)
 
-		if err := helmCmd.Run(); err != nil {
-			return fmt.Errorf("helm deploy failed: %v", err)
+		// Apply RBAC resources if present
+		if err := utils.ApplyRBACResources(directory, namespace, kubeconfig); err != nil {
+			return fmt.Errorf("failed to apply RBAC resources: %w", err)
+		}
+
+		// Create Agent CR
+		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			return fmt.Errorf("failed to build kubeconfig: %w", err)
+		}
+
+		dynamicClient, err := dynamic.NewForConfig(config)
+		if err != nil {
+			return fmt.Errorf("failed to create dynamic client: %w", err)
+		}
+
+		// Create namespace if it doesn't exist
+		nsClient := dynamicClient.Resource(schema.GroupVersionResource{
+			Group:    "",
+			Version:  "v1",
+			Resource: "namespaces",
+		})
+
+		ctx := context.Background()
+
+		// Check if namespace exists
+		_, err = nsClient.Get(ctx, namespace, metav1.GetOptions{})
+		if err != nil {
+			// Create namespace
+			nsObj := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Namespace",
+					"metadata": map[string]interface{}{
+						"name": namespace,
+					},
+				},
+			}
+			_, err = nsClient.Create(ctx, nsObj, metav1.CreateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to create namespace %s: %w", namespace, err)
+			}
+			fmt.Fprintf(os.Stderr, "Created namespace %s\n", namespace)
+		}
+
+		// Construct full Agent resource YAML
+		agentYAML, err := yaml.Marshal(agent)
+		if err != nil {
+			return fmt.Errorf("failed to marshal agent yaml: %w", err)
+		}
+
+		// Apply using kubectl for simplicity
+		tmpFile, err := os.CreateTemp("", "agent-*.yaml")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file: %w", err)
+		}
+		defer os.Remove(tmpFile.Name())
+
+		if _, err := tmpFile.Write(agentYAML); err != nil {
+			return fmt.Errorf("failed to write to temp file: %w", err)
+		}
+		if err := tmpFile.Close(); err != nil {
+			return fmt.Errorf("failed to close temp file: %w", err)
+		}
+
+		// Apply the Agent CR
+		applyArgs := []string{"apply", "-f", tmpFile.Name()}
+		if kubeconfig != "" {
+			applyArgs = append(applyArgs, "--kubeconfig", kubeconfig)
+		}
+
+		applyCmd := exec.Command("kubectl", applyArgs...)
+		applyCmd.Stdout = os.Stdout
+		applyCmd.Stderr = os.Stderr
+		if err := applyCmd.Run(); err != nil {
+			return fmt.Errorf("kubectl apply failed: %w", err)
 		}
 
 		// Wait for agent pod to be ready
 		fmt.Fprintf(os.Stderr, "Waiting for agent pod to be ready...\n")
-		kubectlArgs := []string{
+		waitArgs := []string{
 			"wait", "--for=condition=ready", "pod",
-			"-l", fmt.Sprintf("agent-name=%s", deployAgentName),
-			"-n", deployNamespace,
+			"-l", fmt.Sprintf("agent-name=%s", agent.Metadata.Name),
+			"-n", namespace,
 			"--timeout=180s",
 		}
-		kubectlCmd := exec.Command("kubectl", kubectlArgs...)
-		kubectlCmd.Stdout = os.Stdout
-		kubectlCmd.Stderr = os.Stderr
-		if err := kubectlCmd.Run(); err != nil {
-			return fmt.Errorf("kubectl wait failed: %v", err)
+		if kubeconfig != "" {
+			waitArgs = append(waitArgs, "--kubeconfig", kubeconfig)
 		}
 
-		fmt.Fprintf(os.Stderr, "Agent %s deployed and ready in namespace %s.\n", deployAgentName, deployNamespace)
+		waitCmd := exec.Command("kubectl", waitArgs...)
+		waitCmd.Stdout = os.Stdout
+		waitCmd.Stderr = os.Stderr
+		if err := waitCmd.Run(); err != nil {
+			return fmt.Errorf("kubectl wait failed: %w", err)
+		}
+
+		fmt.Fprintf(os.Stderr, "Agent %s deployed and ready in namespace %s.\n", agent.Metadata.Name, namespace)
 		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(deployCmd)
-	deployCmd.Flags().StringVar(&deployAgentName, "agent-name", "", "Name of the agent instance (required)")
-	deployCmd.Flags().StringVar(&deployNamespace, "namespace", "", "Kubernetes namespace to deploy to (required)")
-	deployCmd.Flags().StringVar(&deployImageTag, "image-tag", "", "Agent Docker image tag (required)")
-	deployCmd.Flags().StringVar(&deployChartPath, "chart", "", "Path to Helm chart (default: ../helm)")
-	deployCmd.Flags().StringVar(&deployValuesFile, "values", "", "Path to Helm values.yaml (default: ../helm/values.yaml)")
-	deployCmd.Flags().StringVar(&deployMicrok8sVals, "microk8s-values", "", "Path to microk8s values file (default: ../helm/values-microk8s.yaml)")
-	deployCmd.Flags().StringVar(&deployReleaseName, "release", "", "Helm release name (default: agent-<agent-name>)")
-	deployCmd.Flags().StringArrayVar(&deploySetValues, "set", []string{}, "Additional Helm --set values")
 }

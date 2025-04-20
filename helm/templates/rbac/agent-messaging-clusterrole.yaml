@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "agentbox.fullname" . }}-agent-messaging
+  labels:
+    {{- include "agentbox.labels" . | nindent 4 }}
+rules:
+- apiGroups: ["agents.algoluna.com"]
+  resources: ["agents"]
+  verbs: ["get", "list"]
+- apiGroups: ["agents.algoluna.com"]
+  resources: ["agents/message"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list"]
+  resourceNames: ["{{ include "agentbox.fullname" . }}-agent-operator"]
